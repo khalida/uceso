@@ -1,4 +1,4 @@
-function [ runningPeak ] = mpcControllerForecastFree( model, demand, ...
+function [ runningPeak, b0, featureVectors ] = mpcControllerForecastFree( model, demand, ...
     batteryCapacity, maximumChargeRate, demandDelays, MPC, Sim)
 
 % mpcControllerForecastFree: Time series simulation of a forecast free
@@ -25,9 +25,13 @@ else
     peakSoFar = 0;
 end
 daysPassed = 0;
+lastIdx = nIdxs-Sim.k + 1;
+b0 = zeros(1, lastIdx);
+nFeatures = Sim.k + 3;
+featureVectors = zeros(nFeatures, lastIdx);
 
 %% Run through time series
-for idx = 1:(nIdxs-MPC.horizon+1)
+for idx = 1:(nIdxs-Sim.k+1)
     demandNow = demand(idx);
     hourNow = hourNum(idx);
     
@@ -38,10 +42,19 @@ for idx = 1:(nIdxs-MPC.horizon+1)
         featureVector = [demandDelays; stateOfCharge; peakSoFar; hourNow];
     end
     
-    if MPC.knowFuture
-        featureVector = [demand(idx:(idx+MPC.horizon-1)); stateOfCharge;...
-            demandNow; peakSoFar];
-    end
+%     if MPC.knowFuture
+%         % Special case for TestUnprincipledController.m testing
+%         featureVector = [demandDelays((end-Sim.k+1):end);...
+%             stateOfCharge; demandNow; peakSoFar];
+%         featureVectors(:, idx) = featureVector;
+%     end
+    
+%     if MPC.useNPvectors
+%         % Special case for TestUnprincipledController.m testing
+%         featureVector = [demand(idx:(idx+Sim.k-1)); stateOfCharge;...
+%             demandNow; peakSoFar];
+%         featureVectors(:, idx) = featureVector;
+%     end
     
     switch Sim.forecastModels
         
@@ -86,6 +99,8 @@ for idx = 1:(nIdxs-MPC.horizon+1)
     
     % Apply control decision, subject to rate and state of charge
     % constriants
+    % origValue = energyToBatteryNow;
+    
     energyToBatteryNow = max([energyToBatteryNow, ...
         -stateOfCharge, -demandNow, -maximumChargeEnergy]);
     
@@ -93,6 +108,7 @@ for idx = 1:(nIdxs-MPC.horizon+1)
         (batteryCapacity-stateOfCharge), maximumChargeEnergy]);
     
     stateOfCharge = stateOfCharge + energyToBatteryNow;
+    b0(idx) = energyToBatteryNow;
     
     % Update current peak power
     % Reset if we are at start of day (and NOT first interval)

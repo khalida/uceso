@@ -10,8 +10,8 @@ Sim.resultsDir = ['..' filesep 'results' filesep timeString];
 mkdir(Sim.resultsDir);
 
 %% Instances
-Sim.nCustomers = [1, 5, 25, 125];
-Sim.nAggregates = 6;
+Sim.nCustomers = [1, 25];
+Sim.nAggregates = 2;
 Sim.nInstances = length(Sim.nCustomers) * Sim.nAggregates;
 Sim.nProc = min(Sim.nInstances, 4);
 
@@ -27,17 +27,17 @@ Sim.hoursPerDay = 24;
 Sim.k = 48;                    % horizon & seasonality (assumed same)
 
 %% Methods
-Sim.methodList = {'NPFC', 'MFFC', 'PFFC'}; % 'SP', , 'IMFC',
+Sim.methodList = {'SP', 'NPFC', 'MFFC', 'IMFC', 'PFFC'}; % 'SP', , 'IMFC',
 Sim.nMethods = length(Sim.methodList);
 Sim.forecastModels = 'FFNN';
 
 %% Forecast training options
 trainControl.nNodes = 50;                % For the forecast models
-trainControl.nStart = 5;                % No. of NN initializations
+trainControl.nStart = 3;                % No. of NN initializations
 trainControl.minimiseOverFirst = Sim.k;
 trainControl.suppressOutput = false;
 trainControl.mseEpochs = 2000;
-trainControl.maxTime = 2*60;           % Allow max of 10 minutes to train NN
+trainControl.maxTime = 10*60;           % Allow max of 10 minutes to train NN
 
 trainControl.performanceDifferenceThreshold = 0.05;
 trainControl.nDaysPreviousTrainSarma = 10;
@@ -48,16 +48,16 @@ trainControl.horizon = Sim.k;
 trainControl.trainRatio = 0.8;
 
 % Forecast-free parameters
-trainControl.nTrainShuffles = 10;                    % # of shuffles to consider
+trainControl.nTrainShuffles = 20;                    % # of shuffles to consider
 trainControl.nDaysSwap = floor(Sim.nDaysTrain/5);   % pairs of days to swap per shuffle
-trainControl.nNodesFF = 200; %ceil(trainControl.nNodes*2);  % For fcast-free controller
+trainControl.nNodesFF = 100; %ceil(trainControl.nNodes*2);  % For fcast-free controller
 
 %% MPC options
 MPC.secondWeight = 0;% 1e-4;       % Of secondary objective
 MPC.knowDemandNow = false;         % Is current demand known to controller?
 MPC.clipNegativeFcast = true;
 MPC.iterationFactor = 1.0;         % To apply to default maximum iterations
-MPC.rewardMargin = true;           % Reward margin from creating a new peak?
+MPC.rewardMargin = false;           % Reward margin from creating a new peak?
 MPC.SPrecourse = true;             % Whether or not to allow set point recourse
 MPC.billingPeriodDays = 7;
 MPC.resetPeakToMean = true;

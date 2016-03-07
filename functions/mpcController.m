@@ -1,4 +1,5 @@
-function [ runningPeak, exitFlag, forecastUsed ] = mpcController( pars, ...
+function [ runningPeak, exitFlag, forecastUsed, b0, featureVecs ] = ...
+    mpcController( pars, ...
     godCast, demand, batteryCapacity, maximumChargeRate, demandDelays, ...
     Sim, runControl)
 
@@ -41,31 +42,50 @@ else
 end
 
 daysPassed = 0;
-nIdxs = length(demand);
+nIdxs = size(godCast, 1); % length(demand);
 
 %% Pre-Allocations
 runningPeak = zeros(1, nIdxs);
 exitFlag = zeros(1, nIdxs);
 forecastUsed = zeros(Sim.k, nIdxs);
+b0 = zeros(1, nIdxs);
+
+% featureVectors = [forecasts; stateOfCharges; demandNows; peakSoFars];
+nDim = Sim.k + 3;
+featureVecs = zeros(nDim, nIdxs);
 
 %% Run through time series
 for idx = 1:nIdxs;
     demandNow = demand(idx);
     hourNow = hourNum(idx);
-    
+
     if runControl.godCast
         forecast = godCast(idx, :)';
+        
     elseif runControl.naivePeriodic
-        forecast = demandDelays;
+        forecast = demandDelays((end-Sim.trainControl.horizon+1):end);
+        
     elseif runControl.MPC.setPoint
-        forecast = ones(size(demandDelays)).*demandNow;
+        forecast = ones(Sim.trainControl.horizon, 1).*demandNow;
+        
     else
         % Produce forecast from input net
         forecast = forecastHandle( pars, demandDelays, ...
             runControl.MPC.trainControl);
     end
     
+    % DEBUGGING: work out what's going on with godCast:
+    if ~isequal(forecast, demand(idx:(idx+Sim.k-1))) && runControl.godCast
+        warning('FORECAST DOESNT MATCH?');
+    end
+    
     forecastUsed(:, idx) = forecast;
+    
+    % featureVectors(:, idx) = [demandDelays; stateOfCharge; peakSoFar; hourNow];
+    if runControl.godCast
+        featureVecs(:, idx) = ...
+            [forecast; stateOfCharge; peakSoFar; hourNow];
+    end
     
     [energyToBattery, exitFlag(idx)] = controllerOptimizer(forecast, ...
         stateOfCharge, demandNow, batteryCapacity, maximumChargeRate, ...
@@ -105,13 +125,21 @@ for idx = 1:nIdxs;
     
     % Apply control action to plant (subject to rate and state of charnge
     % constraints)
+    origValue = energyToBatteryNow;
+    
     energyToBatteryNow = max([energyToBatteryNow, ...
         -stateOfCharge, -demandNow, -maximumChargeEnergy]);
     
     energyToBatteryNow = min([energyToBatteryNow, ...
         (batteryCapacity-stateOfCharge), maximumChargeEnergy]);
     
+    % Debugging: Only works for godCast case
+    if abs(energyToBatteryNow - origValue) > 1e-6 && runControl.godCast
+        warning('Simulation constraint active; something wrong with optimization constraint?');
+    end
+    
     stateOfCharge = stateOfCharge + energyToBatteryNow;
+    b0(idx) = energyToBatteryNow;
     
     % Update current peak power
     % Reset if we are at start of day(and NOT first time-step!)

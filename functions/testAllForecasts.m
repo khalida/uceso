@@ -12,6 +12,8 @@ peakPowers = cell(Sim.nInstances, 1);
 smallestExitFlag = cell(Sim.nInstances, 1);
 allKWhs = zeros(Sim.nInstances, 1);
 lossTestResults = cell(Sim.nInstances, 1);
+featureVectorsFF = cell(Sim.nInstances, 1);
+featureVectorsGC = cell(Sim.nInstances, 1);
 
 for instance = 1:Sim.nInstances
     peakReductions{instance} = zeros(Sim.nMethods,1);
@@ -28,8 +30,6 @@ Sim = setDefaultValues(Sim, {'forecastModels', 'FFNN'});
 % Extract data from Sim struct for efficiency in parfor communication
 nMethods = Sim.nMethods;
 methodList = Sim.methodList;
-hourNumberTest = Sim.hourNumberTest;
-stepsPerHour = Sim.stepsPerHour;
 stepsPerDay = Sim.stepsPerDay;
 trainIdxs = Sim.trainIdxs;
 testIdxs = Sim.testIdxs;
@@ -47,6 +47,7 @@ delete(poolobj);
 disp('===== Forecast Testing =====')
 
 parfor instance = 1:nInstances
+% for instance = 1:nInstances
     
     %% Battery properties
     batteryCapacity = allKWhs(instance)*batteryCapacityRatio*stepsPerDay;
@@ -58,7 +59,7 @@ parfor instance = 1:nInstances
     peakLocalPower = max(demandValuesTest);
     
     % Create 'historical load pattern' used for initialization etc.
-    demandDelays = demandValuesTrain(end-k+1:end);
+    demandDelays = demandValuesTrain(end-Sim.trainControl.nLags+1:end);
     
     % Create godCast forecasts
     godCastValues = createGodCast(demandValuesTest, k);
@@ -77,7 +78,8 @@ parfor instance = 1:nInstances
         if strcmp(thisMethodString, 'IMFC')
             
             %% Forecast Free Controller
-            [ runningPeak ] = mpcControllerForecastFree( ...
+            [ runningPeak, ~, featureVectorsFF{instance} ] = ...
+                mpcControllerForecastFree( ...
                 pars{instance, methodType}, demandValuesTest,...
                 batteryCapacity, maximumChargeRate, demandDelays,...
                 MPC, Sim);
@@ -98,16 +100,22 @@ parfor instance = 1:nInstances
                 runControl.MPC.knowDemandNow = true;
             end
             
-            [runningPeak, exitFlag, forecastUsed] = mpcController( ...
+            [runningPeak, exitFlag, forecastUsed, ~,...
+                featureVectorsGC{instance}] = mpcController(...
                 pars{instance, methodType}, godCastValues,...
                 demandValuesTest, batteryCapacity, maximumChargeRate, ...
                 demandDelays, Sim, runControl);
         end
         
+        lastIdxCommon = length(runningPeak) - mod(length(runningPeak), ...
+            k*MPC.billingPeriodDays);
+        
+        idxsCommon = 1:lastIdxCommon;
+        
         % Extract simulation results
         peakReductions{instance}(methodType) = ...
-            extractSimulationResults(runningPeak',...
-            demandValuesTest, k*MPC.billingPeriodDays);
+            extractSimulationResults(runningPeak(idxsCommon)',...
+            demandValuesTest(idxsCommon), k*MPC.billingPeriodDays);
         
         peakPowers{instance}(methodType) = peakLocalPower;
         if isempty(exitFlag)
@@ -189,5 +197,6 @@ results.peakPowersTrialFlattened = peakPowersTrialFlattened;
 results.smallestExitFlag = smallestExitFlagArray;
 results.allKWhs = allKWhsArray;
 results.lossTestResults = lossTestResultsArray;
+results.featureVectorsFF = featureVectorsFF;
 
 end

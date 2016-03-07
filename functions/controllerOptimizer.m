@@ -115,6 +115,12 @@ else
     %          x_i - x_(k+2) <= peakSoFar - forecast_i (for all i in 1:k)
     A = [A; eye(k, k), zeros(k, 1), ones(k, 1).*-1];
     b = [b; peakSoFar - forecast];
+    
+    % 5. Constrain 1..k variables to be >= -forecast (don't allow expected export)
+    % Require: x_(i) >= -forecast (for all i in 1:k)
+    %          -x_(i)<= forecast (for all i in 1:k)
+    A = [A; -eye(k, k), zeros(k, 2)];
+    b = [b; forecast];
 
     
     %% BOUNDS:

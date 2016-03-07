@@ -64,6 +64,7 @@ poolobj = gcp('nocreate');
 delete(poolobj);
 
 parfor instance = 1:nInstances
+% for instance = 1:nInstances
 
     % for instance = 1:nInstances
     % Extract aggregated demand

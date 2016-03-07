@@ -8,7 +8,7 @@ function [ featureVectors, decisionVectors ] = ...
 
 %% Initializations
 stateOfCharge = 0.5*batteryCapacity;
-nIdxs = length(demand);
+nIdxs = size(demandGodCast, 1);
 k = Sim.k;
 hourNum = Sim.hourNumberTrainOnly;
 stepsPerHour = Sim.stepsPerHour;
@@ -30,9 +30,9 @@ daysPassed = 0;
 %% Pre-Allocations
 % Features <k previous demands, (demandNow), SoC, peakSoFar, hourNum>
 if MPC.knowDemandNow
-    featureVectors = zeros(k + 4, nIdxs);
+    featureVectors = zeros(Sim.trainControl.nLags + 4, nIdxs);
 else
-    featureVectors = zeros(k + 3, nIdxs);
+    featureVectors = zeros(Sim.trainControl.nLags + 3, nIdxs);
 end
 
 % Response <next step charging power, (peakForecastPower)>

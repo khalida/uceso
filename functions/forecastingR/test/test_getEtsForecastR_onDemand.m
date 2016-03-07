@@ -6,7 +6,7 @@ clearvars; close all; clc;
 tic;
 
 % === RUNNING OPTIONS ===
-nCustomers = [1, 25];
+nCustomers = [100, 1000];
 nAggregates = 3;
 dataFile = '../../../data/demand_3639.csv';
 trainControl.horizon = 48;
@@ -27,7 +27,7 @@ firstTrainIndex = nReads - nIndFcast - nIndTrain + 1;
 trainInd = firstTrainIndex + (0:(nIndTrain-1));
 testInd = max(trainInd) + (1:nIndFcast);
 
-if(max(testInd) > nReads)
+if(max(testInd) > nReads || firstTrainIndex < 1)
     warning('Test index out of bounds');
 end
 
@@ -43,6 +43,7 @@ for ii =  1:length(nCustomers)
     
     nCust = nCustomers(ii);
     
+%     for eachAgg = 1:nAggregates
     parfor eachAgg = 1:nAggregates
         
         % === SELECT & SUM RANDOM SUBSET OF CUSTOMERS ===
@@ -77,6 +78,7 @@ for ii =  1:length(nCustomers)
             if (eachHorizon==1)
                 
                 % === Plot forecast point VS actuals ===
+                figure();
                 plot(actual, fcastRets, '.');
                 hold on; grid on;
                 refline(1, 0);
@@ -86,7 +88,6 @@ for ii =  1:length(nCustomers)
                 
                 % === Plot the forecast to show how it looks compared to historic, actual, NP
                 figure();
-                plot(1:trainControl.horizon, NP, 'k');
                 hold on; grid on;
                 plot((1:trainControl.horizon)+trainControl.horizon, actual);
                 plot((1:trainControl.horizon)+trainControl.horizon, NP);
@@ -104,10 +105,10 @@ for ii =  1:length(nCustomers)
         MAPE_NP(ii, eachAgg) = mean(MAPEs_NP);
         MAPE_Rets(ii, eachAgg) = mean(MAPEs_Rets);
         
-        figure(); hold on;
+        figure(); hold on; grid on;
         plot(MSEs_NP);
         plot(MSEs_Rets);
-        legend({});
+        legend({'NP, mean MSEs', 'ETS, mean MSEs'});
         disp(['nCust: ', num2str(nCust), ', eachAgg: ',...
             num2str(eachAgg), ', DONE!']);
     end
@@ -139,7 +140,7 @@ hold on; grid on;
 plot(nCustomers, MAPE_Rets_mean);
 legend({'NP', 'ETS'});
 xlabel('No. of Customers');
-ylabel('MAPE [%]');
+ylabel('MAPE [%] with std deviation shown');
 hold off;
 
 % Repeat for MSE: which is what auto-method most-likely seeks to minimise:
@@ -155,7 +156,7 @@ hold on; grid on;
 plot(nCustomers, MSE_Rets_mean);
 legend({'NP', 'ETS'});
 xlabel('No. of Customers');
-ylabel('MSE [kWh/interval]');
+ylabel('MSE [kWh/interval] with std deviation shown');
 hold off;
 
 toc;

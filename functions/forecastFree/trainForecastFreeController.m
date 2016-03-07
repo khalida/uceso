@@ -8,7 +8,7 @@ function [ pars ] = trainForecastFreeController( demandValuesTrain, ...
 trainControl = Sim.trainControl;
 
 %% Seperate training data into initialization (1-day) and training (rest)
-initializationIdxs = 1:Sim.k;
+initializationIdxs = 1:Sim.trainControl.nLags;
 demandDelays = demandValuesTrain(initializationIdxs, :);
 
 demandValuesTrainOnly = demandValuesTrain(setdiff(...
@@ -17,11 +17,13 @@ demandValuesTrainOnly = demandValuesTrain(setdiff(...
 
 %% Create the godCast for training data
 demandGodCast = createGodCast(demandValuesTrainOnly, Sim.k);
-
+nTrainIdxs = size(demandGodCast, 1);
+demandValuesTrainOnly = demandValuesTrainOnly(1:nTrainIdxs);
 
 %% Set-up parameters for on-line simulation
 Sim.hourNumberTrainOnly = Sim.hourNumberTrain(setdiff(...
     (1:length(demandValuesTrain)), initializationIdxs));
+
 meanKWh = mean(demandValuesTrainOnly);
 batteryCapacity = meanKWh*Sim.batteryCapacityRatio*Sim.stepsPerDay;
 maximumChargeRate = Sim.batteryChargingFactor*batteryCapacity;
