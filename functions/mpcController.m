@@ -1,4 +1,4 @@
-function [ runningPeak, exitFlag, forecastUsed, b0, featureVecs ] = ...
+function [ runningPeak, exitFlag, forecastUsed, responseVecs, featureVecs ] = ...
     mpcController( pars, ...
     godCast, demand, batteryCapacity, maximumChargeRate, demandDelays, ...
     Sim, runControl)
@@ -48,11 +48,19 @@ nIdxs = size(godCast, 1); % length(demand);
 runningPeak = zeros(1, nIdxs);
 exitFlag = zeros(1, nIdxs);
 forecastUsed = zeros(Sim.k, nIdxs);
-b0 = zeros(1, nIdxs);
+if runControl.MPC.SPrecourse
+    responseVecs = zeros(2, nIdxs);         % [b0; peakPower]
+else
+    responseVecs = zeros(1, nIdxs);         % [b0]
+end
 
-% featureVectors = [forecasts; stateOfCharges; demandNows; peakSoFars];
-nDim = Sim.k + 3;
-featureVecs = zeros(nDim, nIdxs);
+% featureVector = [demandDelay; stateOfCharges; (demandNow); peakSoFars];
+if runControl.MPC.knowDemandNow
+    nFeatures = Sim.trainControl.nLags + 3;
+else
+    nFeatures = Sim.trainControl.nLags + 2;
+end
+featureVecs = zeros(nFeatures, nIdxs);
 
 %% Run through time series
 for idx = 1:nIdxs;
@@ -62,6 +70,9 @@ for idx = 1:nIdxs;
     if runControl.godCast
         forecast = godCast(idx, :)';
         
+    elseif isfield(runControl, 'modelCast') && runControl.modelCast
+        forecast = godCast(idx, :)';
+               
     elseif runControl.naivePeriodic
         forecast = demandDelays((end-Sim.trainControl.horizon+1):end);
         
@@ -76,15 +87,33 @@ for idx = 1:nIdxs;
     
     % DEBUGGING: work out what's going on with godCast:
     if ~isequal(forecast, demand(idx:(idx+Sim.k-1))) && runControl.godCast
-        warning('FORECAST DOESNT MATCH?');
+        error('FORECAST DOESNT MATCH?');
     end
     
     forecastUsed(:, idx) = forecast;
     
-    % featureVectors(:, idx) = [demandDelays; stateOfCharge; peakSoFar; hourNow];
-    if runControl.godCast
-        featureVecs(:, idx) = ...
-            [forecast; stateOfCharge; peakSoFar; hourNow];
+    if runControl.MPC.UPknowFuture
+        % featureVectors = [forecasts; stateOfCharges; (demandNows); peakSoFars];
+        if runControl.godCast
+            if runControl.MPC.knowDemandNow
+                featureVecs(:, idx) = ...
+                    [forecast; stateOfCharge; demandNow; peakSoFar];
+            else
+                featureVecs(:, idx) = ...
+                    [forecast; stateOfCharge; peakSoFar];
+            end                
+        end
+    else
+        % featureVectors = [demandDelays; stateOfCharges; (demandNows); peakSoFars];
+        if runControl.godCast
+            if runControl.MPC.knowDemandNow
+                featureVecs(:, idx) = ...
+                    [demandDelays; stateOfCharge; demandNow; peakSoFar];
+            else
+                featureVecs(:, idx) = ...
+                    [demandDelays; stateOfCharge; peakSoFar];
+            end
+        end
     end
     
     [energyToBattery, exitFlag(idx)] = controllerOptimizer(forecast, ...
@@ -135,15 +164,21 @@ for idx = 1:nIdxs;
     
     % Debugging: Only works for godCast case
     if abs(energyToBatteryNow - origValue) > 1e-6 && runControl.godCast
-        warning('Simulation constraint active; something wrong with optimization constraint?');
+        error(['Simulation constraint active; something wrong with', ...
+            'optimization constraint?']);
     end
     
     stateOfCharge = stateOfCharge + energyToBatteryNow;
-    b0(idx) = energyToBatteryNow;
     
+    responseVecs(1, idx) = energyToBatteryNow;
+    
+    if runControl.MPC.SPrecourse
+        responseVecs(2, idx) = peakForecastEnergy;
+    end
+
     % Update current peak power
     % Reset if we are at start of day(and NOT first time-step!)
-    if hourNow == 1 &&  idx ~= 1
+    if hourNow == 0
         daysPassed = daysPassed + 1;
     end
     

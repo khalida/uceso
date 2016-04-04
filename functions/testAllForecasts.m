@@ -59,7 +59,7 @@ parfor instance = 1:nInstances
     peakLocalPower = max(demandValuesTest);
     
     % Create 'historical load pattern' used for initialization etc.
-    demandDelays = demandValuesTrain(end-Sim.trainControl.nLags+1:end);
+    demandDelays = demandValuesTrain(end-Sim.trainControl.nLags+1:end); %#ok<*PFBNS>
     
     % Create godCast forecasts
     godCastValues = createGodCast(demandValuesTest, k);
@@ -73,16 +73,16 @@ parfor instance = 1:nInstances
         runControl = [];
         runControl.MPC = MPC;
         runControl.forecastModels = forecastModels;
-        thisMethodString = methodList{methodType}; %#ok<PFBNS>
+        thisMethodString = methodList{methodType};
         
         if strcmp(thisMethodString, 'IMFC')
             
             %% Forecast Free Controller
-            [ runningPeak, ~, featureVectorsFF{instance} ] = ...
-                mpcControllerForecastFree( ...
-                pars{instance, methodType}, demandValuesTest,...
-                batteryCapacity, maximumChargeRate, demandDelays,...
-                MPC, Sim);
+            [ runningPeak, ~, featureVectorsFF{instance}, ~] = ...
+                mpcControllerForecastFree(pars{instance, methodType},...
+                demandValuesTest, batteryCapacity, maximumChargeRate,...
+                demandDelays, MPC, Sim);
+            
         else
             
             %% Normal forecast-driven or set-point controller
@@ -109,7 +109,7 @@ parfor instance = 1:nInstances
         
         lastIdxCommon = length(runningPeak) - mod(length(runningPeak), ...
             k*MPC.billingPeriodDays);
-        
+
         idxsCommon = 1:lastIdxCommon;
         
         % Extract simulation results
@@ -118,6 +118,7 @@ parfor instance = 1:nInstances
             demandValuesTest(idxsCommon), k*MPC.billingPeriodDays);
         
         peakPowers{instance}(methodType) = peakLocalPower;
+        
         if isempty(exitFlag)
             smallestExitFlag{instance}(methodType) = 0;
         else
@@ -125,7 +126,7 @@ parfor instance = 1:nInstances
         end
         
         % Compute the performance of the forecast
-        isForecastFree = strcmp(thisMethodString, 'forecastFree');
+        isForecastFree = strcmp(thisMethodString, 'IMFC');
         isSetPoint = strcmp(thisMethodString, 'SP');
         
         if (~isForecastFree && ~isSetPoint)
@@ -198,5 +199,6 @@ results.smallestExitFlag = smallestExitFlagArray;
 results.allKWhs = allKWhsArray;
 results.lossTestResults = lossTestResultsArray;
 results.featureVectorsFF = featureVectorsFF;
+results.featureVectorsGC = featureVectorsGC;
 
 end

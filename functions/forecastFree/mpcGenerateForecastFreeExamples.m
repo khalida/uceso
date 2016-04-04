@@ -9,7 +9,6 @@ function [ featureVectors, decisionVectors ] = ...
 %% Initializations
 stateOfCharge = 0.5*batteryCapacity;
 nIdxs = size(demandGodCast, 1);
-k = Sim.k;
 hourNum = Sim.hourNumberTrainOnly;
 stepsPerHour = Sim.stepsPerHour;
 maximumChargeEnergy = maximumChargeRate/stepsPerHour; % kW -> kWh/interval
@@ -28,11 +27,11 @@ end
 daysPassed = 0;
 
 %% Pre-Allocations
-% Features <k previous demands, (demandNow), SoC, peakSoFar, hourNum>
+% featureVectors = [nLags previous demands; stateOfCharges; (demandNows); peakSoFars];
 if MPC.knowDemandNow
-    featureVectors = zeros(Sim.trainControl.nLags + 4, nIdxs);
-else
     featureVectors = zeros(Sim.trainControl.nLags + 3, nIdxs);
+else
+    featureVectors = zeros(Sim.trainControl.nLags + 2, nIdxs);
 end
 
 % Response <next step charging power, (peakForecastPower)>
@@ -61,12 +60,12 @@ for idx = 1:nIdxs
         peakSoFar, MPC);
     
     % Save feature and response vectors:
+    % featureVectors = [nLags previous demands; stateOfCharges; (demandNows); peakSoFars];
     if MPC.knowDemandNow
-        featureVectors(:, idx) = [demandDelays; demandNow; ...
-            stateOfCharge; peakSoFar; hourNow];
+        featureVectors(:, idx) = [demandDelays; stateOfCharge; ...
+            demandNow; peakSoFar];
     else
-        featureVectors(:, idx) = [demandDelays; stateOfCharge;...
-            peakSoFar; hourNow];
+        featureVectors(:, idx) = [demandDelays; stateOfCharge; peakSoFar];
     end
     
     % Save data for set-point recourse if required
@@ -74,9 +73,6 @@ for idx = 1:nIdxs
         % Peak power over horizon if forecasts correct and actions taken
         peakForecastPower = max([energyToBattery(:) + forecast(:); peakSoFar]);
         decisionVectors(2, idx) = peakForecastPower;
-        
-        % Check if optimal action combined with actual current demand
-        % will exceed this peak - and if so rectify charging action
     end
     
     energyToBatteryNow = energyToBattery(1);
@@ -94,7 +90,7 @@ for idx = 1:nIdxs
     
     % Update current peak energy
     % Reset if we are at start of day (and NOT first interval)
-    if hourNow == 1 &&  idx ~= 1
+    if hourNow == 0
         daysPassed = daysPassed + 1;
     end
     

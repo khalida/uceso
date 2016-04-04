@@ -41,8 +41,7 @@ switch Sim.forecastModels
         % Training Function
         trainingFunction = 'trainscg';  % Scaled Conjugate Gradient
         
-        performances = zeros(1, trainControl.nStart);
-        allNets = cell(1, trainControl.nStart);
+        performances = ones(1, trainControl.nStart).*inf;
         
         for iStart = 1:trainControl.nStart
             thisNet = fitnet(trainControl.nNodesFF,trainingFunction);
@@ -74,15 +73,27 @@ switch Sim.forecastModels
             thisNet.trainParam.showCommandLine = false;
             
             % Train the Network
-            [allNets{1, iStart}, ~] = train(thisNet,featureVectorTrain,...
+            trainedNet = train(thisNet,featureVectorTrain,...
                 decisionVectorTrain);
             
-            performances(1, iStart) = mse(decisionVectorTest, ...
-                allNets{1, iStart}(featureVectorTest));
+            thisPerf = mse(decisionVectorTest, ...
+                trainedNet(featureVectorTest));
+            
+            if thisPerf <= min(performances)
+                model = trainedNet;
+            end
+            
+            performances(1, iStart) = thisPerf;
         end
         
-        [~, idx_best] = min(performances);
-        model = allNets{1, idx_best};
+        percentageDifference = (max(performances) - min(performances)) ...
+            / min(performances);
+        
+        if percentageDifference > Sim.trainControl.performanceDifferenceThreshold
+            
+            disp(['Percentage Difference: ' num2str(100*percentageDifference)...
+                '. Performances: ' num2str(performances)]);
+        end
         
         %% DEBUGGING: Plot the actual VS forecast values:
         actualResponseTest = decisionVectorTest(:);

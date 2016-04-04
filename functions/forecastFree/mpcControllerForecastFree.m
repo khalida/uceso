@@ -1,4 +1,4 @@
-function [ runningPeak, b0, featureVectors ] = mpcControllerForecastFree( model, demand, ...
+function [ runningPeak, respVecs, featVecs, b0_raw ] = mpcControllerForecastFree( model, demand, ...
     batteryCapacity, maximumChargeRate, demandDelays, MPC, Sim)
 
 % mpcControllerForecastFree: Time series simulation of a forecast free
@@ -11,9 +11,6 @@ hourNum = Sim.hourNumberTest;
 stepsPerHour = Sim.stepsPerHour;
 maximumChargeEnergy = maximumChargeRate/stepsPerHour; % kW -> kWh/interval
 
-%% Pre-Allocations
-runningPeak = zeros(1, nIdxs);
-
 %% Set Default Values:
 MPC = setDefaultValues(MPC, {'knowDemandNow', false, ...
     'SPrecourse', false, 'resetPeakToMean', false, ...
@@ -25,36 +22,49 @@ else
     peakSoFar = 0;
 end
 daysPassed = 0;
-lastIdx = nIdxs-Sim.k + 1;
-b0 = zeros(1, lastIdx);
-nFeatures = Sim.k + 3;
-featureVectors = zeros(nFeatures, lastIdx);
+lastIdx = nIdxs-Sim.trainControl.horizon + 1;
+if MPC.SPrecourse
+    respVecs = zeros(2, lastIdx);           % [b0, peakEst]
+else
+    respVecs = zeros(1, lastIdx);           % [b0]
+end
+b0_raw = zeros(1, lastIdx);
+% featureVector = [demandDelay; stateOfCharges; (demandNow); peakSoFars];
+if MPC.knowDemandNow
+    nFeatures = Sim.trainControl.nLags + 3;
+else
+    nFeatures = Sim.trainControl.nLags + 2;
+end
+featVecs = zeros(nFeatures, lastIdx);
+
+%% Pre-Allocations
+runningPeak = zeros(1, lastIdx);
 
 %% Run through time series
-for idx = 1:(nIdxs-Sim.k+1)
+for idx = 1:lastIdx
     demandNow = demand(idx);
     hourNow = hourNum(idx);
     
-    if MPC.knowDemandNow
-        featureVector = [demandDelays; demandNow; stateOfCharge;...
-            peakSoFar; hourNow];
+    if MPC.UPknowFuture
+        % featureVectors = [futureDemand; stateOfCharges; demandNows; peakSoFars];
+        if MPC.knowDemandNow
+            featureVector = [demand(idx:(idx+Sim.trainControl.horizon-1));...
+                stateOfCharge; demandNow; peakSoFar];
+        else
+            featureVector = [demand(idx:(idx+Sim.trainControl.horizon-1));...
+                stateOfCharge; peakSoFar];
+        end
     else
-        featureVector = [demandDelays; stateOfCharge; peakSoFar; hourNow];
+        % featureVectors = [demandDelays; stateOfCharges; demandNows; peakSoFars];
+        if MPC.knowDemandNow
+            featureVector = [demandDelays; stateOfCharge; demandNow;...
+                peakSoFar];
+        else
+            featureVector = [demandDelays; stateOfCharge; peakSoFar];
+        end
     end
     
-%     if MPC.knowFuture
-%         % Special case for TestUnprincipledController.m testing
-%         featureVector = [demandDelays((end-Sim.k+1):end);...
-%             stateOfCharge; demandNow; peakSoFar];
-%         featureVectors(:, idx) = featureVector;
-%     end
-    
-%     if MPC.useNPvectors
-%         % Special case for TestUnprincipledController.m testing
-%         featureVector = [demand(idx:(idx+Sim.k-1)); stateOfCharge;...
-%             demandNow; peakSoFar];
-%         featureVectors(:, idx) = featureVector;
-%     end
+    featVecs(:, idx) = featureVector;
     
     switch Sim.forecastModels
         
@@ -67,6 +77,7 @@ for idx = 1:(nIdxs-Sim.k+1)
                 peakPower = model.decisionModel.predict(featureVector');
                 
                 energyToBatteryNow = decisionVector(1);
+                b0_raw(idx) = energyToBatteryNow;
                 peakForecastEnergy = max([peakPower; peakSoFar]);
                 
                 if (demandNow + energyToBatteryNow) > peakForecastEnergy
@@ -74,6 +85,7 @@ for idx = 1:(nIdxs-Sim.k+1)
                 end
             else
                 energyToBatteryNow = decisionVector(1);
+                b0_raw(idx) = energyToBatteryNow;
             end
             
         case 'FFNN'
@@ -82,6 +94,7 @@ for idx = 1:(nIdxs-Sim.k+1)
             % Apply set point recourse if selected
             if MPC.SPrecourse
                 energyToBatteryNow = forecastFreeControllerOutput(1);
+                b0_raw(idx) = energyToBatteryNow;
                 peakForecastEnergy = ...
                     max([forecastFreeControllerOutput(2); peakSoFar]);
                 
@@ -90,6 +103,7 @@ for idx = 1:(nIdxs-Sim.k+1)
                 end
             else
                 energyToBatteryNow = forecastFreeControllerOutput;
+                b0_raw(idx) = energyToBatteryNow;
             end
             
         otherwise
@@ -108,7 +122,11 @@ for idx = 1:(nIdxs-Sim.k+1)
         (batteryCapacity-stateOfCharge), maximumChargeEnergy]);
     
     stateOfCharge = stateOfCharge + energyToBatteryNow;
-    b0(idx) = energyToBatteryNow;
+    respVecs(1, idx) = energyToBatteryNow;
+    
+    if MPC.SPrecourse
+        respVecs(2, idx) = peakForecastEnergy;
+    end
     
     % Update current peak power
     % Reset if we are at start of day (and NOT first interval)

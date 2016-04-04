@@ -5,10 +5,7 @@ timeStart = clock;
 disp(timeStart);
 Config;
 
-%% Add path to the common functions (& any subfolders therein)
-[parentFold, ~, ~] = fileparts(pwd);
-commonFunctionFolder = [parentFold filesep 'functions'];
-addpath(genpath(commonFunctionFolder), '-BEGIN');
+LoadFunctions;
 
 %% Read in DATA
 load(dataFileWithPath);
@@ -33,7 +30,7 @@ end
 % Delete the original demand data (no longer needed)
 clearvars demandData;
 
-forecastMethods = {'NP', 'MLR', 'FFNN', 'VSNN'};
+forecastMethods = {'NP', 'MLR', 'FFNN', 'RNN'};
 forecastMses = cell(Sim.nInstances, 1);
 for instance = 1:Sim.nInstances
     forecastMses{instance} = zeros(length(forecastMethods), 1);
@@ -71,6 +68,10 @@ parfor instance = 1:(Sim.nInstances)
             case 'VSNN'
                 model = trainVsnn(demand_train, Sim.trainControl);
                 thisMse = assessVsnn(model, demand_test);
+                
+            case 'RNN'
+                model = trainRnn(demand_train, Sim.trainControl);
+                thisMse = assessRnn(model, demand_test);
                 
             otherwise
                 error('Model not implemented');

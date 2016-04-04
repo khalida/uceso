@@ -16,12 +16,15 @@
 % peakSoFar: peak per-interval grid power in billing period [kWh]
 % MPC: structure containing running options:
 
-%% 0) Tidy up
+%% 0) Tidy up & Load functions
 clearvars; close all; clc;
 rng(42);
 tic;
+LoadFunctions;
+plotEachTrainLength = true;  %#ok<*UNRCH>
 
-%% 1) Declare simulation parameters:
+%% 1) Running Options
+% Optimization
 MPC.clipNegativeFcast = true;
 MPC.horizon = 48;
 Sim.horizon = MPC.horizon;
@@ -29,126 +32,132 @@ MPC.knowDemandNow = false;
 MPC.chargeWhenCan = false;
 MPC.secondWeight = 0;
 MPC.rewardMargin = true;
-MPC.iterationFactor = 1;
+MPC.iterationFactor = 1.0;
 MPC.resetPeakToMean = true;
-MPC.SPrecourse = false;
+MPC.SPrecourse = true;
 MPC.billingPeriodDays = 7;
 
+% Battery System
 batteryCapacity = 2.5;
 maximumChargeRate = 5;
 stepsPerHour = 2;
 
+% Simulation
 Sim.stepsPerHour = stepsPerHour;
 Sim.k = Sim.horizon;
 Sim.forecastModels = 'FFNN';
 runControl.MPC = MPC;
 runControl.forecastModels = Sim.forecastModels;
 
-
-%% And trainControl parameters
-trainControl.maxTime = 60*60;
+% Training Control
+trainControl.maxTime = 30*60;
 trainControl.suppressOutput = false;
+nNodes = 50;
 
-nOutputs = 1;
 trainRatio = 0.75;
-tsTestLength = 10*runControl.MPC.horizon*runControl.MPC.billingPeriodDays;
-tsTrainLengths = [50 100].*...
-    runControl.MPC.horizon*runControl.MPC.billingPeriodDays;
+sglMagnitude = 5;
+noiseMagnitude = 2.5;
 
-nNodes = 100.*ones(length(tsTrainLengths));
+% Attach trainControl to Sim structure, and attach missing data
+% (hacky; need to tidy this lot up!!!)
+trainControl.horizon = Sim.horizon;
+trainControl.nLags = Sim.horizon;
+Sim.trainControl = trainControl;
+trainControl.nNodes = nNodes;
 
-%% 2) Pre-declarations
-exact_godCast_prr = zeros(length(tsTrainLengths), 1);
+tsTrainLengths = [8, 32];
+
+UP_prr = zeros(length(tsTrainLengths), 1);
 exact_NP_prr = zeros(length(tsTrainLengths), 1);
 exact_MC_prr = zeros(length(tsTrainLengths), 1);
-UP_prr = zeros(length(tsTrainLengths), 1);
-noiseLevel = 5;
+exact_godCast_prr = zeros(length(tsTrainLengths), 1);
 
-testDemandSeries = 2.5*(sin(2*pi*((1:tsTestLength)')/...
-    runControl.MPC.horizon).^2) + unifrnd(0, noiseLevel, ...
-    [tsTestLength, 1]);
-
-testDemandSeries = max(0, testDemandSeries);
-
-demandDelays = testDemandSeries(1:runControl.MPC.horizon);
-godCastTest = createGodCast(testDemandSeries, runControl.MPC.horizon);
-
-noiseFreeTs = 2.5*(sin(2*pi*((1:tsTestLength)')/...
-    runControl.MPC.horizon).^2);
-
-modelCast = createGodCast(noiseFreeTs, runControl.MPC.horizon);
-
-for tsTrainIdx = 1:length(tsTrainLengths)
+for trTrIdx = 1:length(tsTrainLengths)
     
-    tsTrainLength = tsTrainLengths(tsTrainIdx);
-    trainDemandSeries = 2.5*(sin(2*pi*((1:tsTrainLength)')/...
-        runControl.MPC.horizon).^2) + unifrnd(0, noiseLevel, ...
-        [tsTrainLength, 1]);
+    tsTrainLength = tsTrainLengths(trTrIdx).*runControl.MPC.horizon*...
+        runControl.MPC.billingPeriodDays;
     
-    trainDemandSeries = max(0, trainDemandSeries);
+    tsTestLength = 50*runControl.MPC.horizon*...
+        runControl.MPC.billingPeriodDays;
     
-    %% 3) Generate training data, based on tSeries simulation with godCast
+    %% 2) Create artificial data
+    toc; disp('=== Creating Data ===');
+    timeSeriesData = noisySine(sglMagnitude, Sim.horizon, noiseMagnitude,...
+        tsTrainLength + tsTestLength);
+    
+    timeSeriesData = max(0, timeSeriesData);
+    avgLoad = mean(timeSeriesData);
+    
+    trainDemandSeries = timeSeriesData(1:tsTrainLength);
+    testDemandSeries = timeSeriesData((length(trainDemandSeries)+1):end);
+    if length(testDemandSeries) ~= tsTestLength
+        error('Test time series length not as expected');
+    end
+    
+    noiseFreeTs = noisySine(sglMagnitude, Sim.horizon, 0, ...
+        tsTrainLength + tsTestLength);
+    
+    noiseFreeTs = max(0, noiseFreeTs);
+    noiseFreeTsTest = noiseFreeTs((end - (tsTestLength-1)):end);
+    demandDelays = trainDemandSeries((end - trainControl.nLags + 1):end);
+    
+    
+    %% 3a) Run exact controller on training data, with godCast to get training
+    % data for UP controller
     
     Sim.hourNumberTest = mod((1:length(trainDemandSeries))', ...
         runControl.MPC.horizon);
     
-    trainControl.nNodes = nNodes(tsTrainIdx);
+    godCastTrain = createGodCast(trainDemandSeries, runControl.MPC.horizon);
+    
+    % featureVectors = [forecasts; stateOfCharges; (demandNows); peakSoFars];
+    toc; disp('=== Run t-series Experiments ===');
+    
     runControl.godCast = true;
     runControl.naivePeriodic = false;
     runControl.MPC.setPoint = false;
     runControl.MPC.trainControl = trainControl;
-    runControl.useNPvectors = true;
-    
-    godCastTrain = createGodCast(trainDemandSeries, runControl.MPC.horizon);
-    
-    % featureVectors = [forecasts; stateOfCharges; demandNows; peakSoFars];
-    unprincipledController = [];
+    runControl.MPC.UPknowFuture = false;
     
     [ ~, ~, ~, responseGc, featureVectorGc ] = ...
-        mpcController(unprincipledController, godCastTrain, ...
+        mpcController([], godCastTrain, ...
         trainDemandSeries, batteryCapacity, maximumChargeRate, ...
         demandDelays, Sim, runControl);
     
-    %% 4) Determine response for each input data point
-    nObservationTrain = size(godCastTrain, 1);
-    responseVectorsGc = zeros(runControl.MPC.horizon, nObservationTrain);
     
-    for iObs = 1:nObservationTrain
-        [responseVectorsGc(:, iObs), ~] = ...
-            controllerOptimizer(featureVectorGc(1:48, iObs), ...
-            featureVectorGc(49, iObs), featureVectorGc(50, iObs), ...
-            batteryCapacity, maximumChargeRate, stepsPerHour,...
-            featureVectorGc(51, iObs), runControl.MPC);
-    end
-    responseVectorsGc = responseVectorsGc(1,:);
-    
-    %if max(abs(responseVectorsGc - responseGc)) > 1e-10
-    %    error('Get different response in time-series Simulation and out of it');
-    %end
-    
-    %% 5) Divide data in training and testing
-    trainIdxs = 1:ceil(nObservationTrain*trainRatio);
-    testIdxs = (max(trainIdxs)+1):nObservationTrain;
+    %% 4a) Divide data-set into training/testing and train UP controller
+    nObsTrain = size(godCastTrain, 1);
+    trainIdxs = 1:ceil(nObsTrain*trainRatio);
+    testIdxs = (max(trainIdxs)+1):nObsTrain;
     
     featureVectorsTrain = featureVectorGc(:, trainIdxs);
-    responseVectorsTrain = responseGc(nOutputs, trainIdxs);
+    responseVectorsTrain = responseGc(:, trainIdxs);
     
     featureVectorsTest = featureVectorGc(:, testIdxs);
-    responseVectorsTest = responseGc(nOutputs, testIdxs);
+    responseVectorsTest = responseGc(:, testIdxs);
     
-    
-    %% 6) Train the unprincipled controller
+    %% 4b) Train UP controller
+    toc; disp('=== Train UP controller ===');
     unprincipledController = ...
         trainFfnn(featureVectorsTrain, responseVectorsTrain, trainControl);
     
-    %% 7) Test performance on test data-set
-    outputVectorsTest = unprincipledController(featureVectorsTest);
-    figure();
-    plotregression(responseVectorsTest, outputVectorsTest);
+    
+    %% 4c) Test performance on test data-set
+    %(this just tests how well an input/output mapping replicates the
+    %optimiser)
+    if plotEachTrainLength
+        toc; disp('=== Train UP controller i/o mapping perf. ===');
+        outputVectorsTest = unprincipledController(featureVectorsTest);
+        figure();
+        plotregression(responseVectorsTest, outputVectorsTest);
+    end
     
     
-    %% 8) Simulate t-series behaviour of various controllers
+    %% 5) Simulate t-series behaviour of various controllers on Test data set
     % NB: this uses simulated/fake data so YMMV!
+    if Sim.hourNumberTest(end) ~= 0
+        error('The last hourNumber needs to be zero for below code to work');
+    end
     Sim.hourNumberTest = mod((1:length(testDemandSeries))', ...
         runControl.MPC.horizon);
     
@@ -157,9 +166,11 @@ for tsTrainIdx = 1:length(tsTrainLengths)
     runControl.MPC.setPoint = false;
     runControl.MPC.trainControl = trainControl;
     
-    %% 8.1) Exact controller with godCast
-    [ runningPeak, ~, ~, b0_godCast, featureVectorGc ] = ...
-        mpcController(unprincipledController, godCastTest, testDemandSeries,...
+    %% 5a) Exact controller with godCast
+    godCastTest = createGodCast(testDemandSeries, runControl.MPC.horizon);
+    toc; disp('=== SIM: Exact controller, godCast ===');
+    [ runningPeak, ~, ~, respGcTest, featVectorGcTest ] = ...
+        mpcController([], godCastTest, testDemandSeries,...
         batteryCapacity, maximumChargeRate, demandDelays, ...
         Sim, runControl);
     
@@ -169,102 +180,139 @@ for tsTrainIdx = 1:length(tsTrainLengths)
     
     idxsCommon = 1:lastIdxCommon;
     
-    exact_godCast_prr(tsTrainIdx) =...
+    exact_godCast_prr(trTrIdx) = ...
         extractSimulationResults(runningPeak(idxsCommon)', ...
         testDemandSeries(idxsCommon),...
         runControl.MPC.horizon*runControl.MPC.billingPeriodDays);
     
-    figure();
-    plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
-    title(['Exact controller with perfect foresight, ' ...
-        num2str(nObservationTrain) ' data points']);
+    if plotEachTrainLength
+        figure();
+        plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
+        title(['Exact controller with perfect foresight, ' ...
+            num2str(nObsTrain) ' data points']);
+        refline(0, avgLoad);
+    end
     
-    %% 8.1a) Exact controller with modelCast
     
-        [ runningPeak, ~, ~, b0_modelCast, featureVectorMc ] = ...
+    %% 5b) Exact controller with modelCast
+    modelCast = createGodCast(noiseFreeTsTest, runControl.MPC.horizon);
+    runControl.godCast = false;
+    runControl.modelCast = true;
+    
+    toc; disp('=== SIM: Exact controller, modelCast ===');
+    [ runningPeak, ~, ~, respVectorMc, featVectorMc ] = ...
         mpcController(unprincipledController, modelCast, testDemandSeries,...
         batteryCapacity, maximumChargeRate, demandDelays, ...
         Sim, runControl);
-   
-    exact_MC_prr(tsTrainIdx) =...
+    
+    exact_MC_prr(trTrIdx) = ...
         extractSimulationResults(runningPeak(idxsCommon)', ...
         testDemandSeries(idxsCommon),...
         runControl.MPC.horizon*runControl.MPC.billingPeriodDays);
     
-    figure();
-    plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
-    title(['Exact controller with Model Cast, ' ...
-        num2str(nObservationTrain) ' data points']);
+    if plotEachTrainLength
+        figure();
+        plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
+        title(['Exact controller with Model Cast, ' ...
+            num2str(nObsTrain) ' data points']);
+        refline(0, avgLoad);
+    end
     
-    %% 8.2) Exact controller with NP forecast
+    %% 5c) Exact controller with NP forecast
     runControl.godCast = false;
+    runControl.modelCast = false;
     runControl.naivePeriodic = true;
     runControl.MPC.SPrecourse = true;
     
-    [ runningPeak, exitFlag, forecastUsed, b0_NP, featureVectorNp ] = ...
-        mpcController(unprincipledController, godCastTest, ...
-        testDemandSeries, batteryCapacity, maximumChargeRate, ...
-        demandDelays, Sim, runControl);
+    toc; disp('=== SIM: Exact controller, NP ===');
+    [ runningPeak, exitFlag, fcUsed, respVecNp, featVecNp ] = ...
+        mpcController([], godCastTest, testDemandSeries,...
+        batteryCapacity, maximumChargeRate, demandDelays, Sim, runControl);
     
-    exact_NP_prr(tsTrainIdx) = ...
+    exact_NP_prr(trTrIdx) = ...
         extractSimulationResults(runningPeak(idxsCommon)', ...
         testDemandSeries(idxsCommon),...
         runControl.MPC.horizon*runControl.MPC.billingPeriodDays);
     
-    figure();
-    plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
-    title(['Exact controller with NP forecast, ' ...
-        num2str(nObservationTrain) ' data points']);
+    if plotEachTrainLength
+        figure();
+        plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
+        title(['Exact controller with NP forecast, ' ...
+            num2str(nObsTrain) ' data points']);
+        refline(0, avgLoad);
+    end
     
-    %% 8.3) Unprincipled controller
-    runControl.MPC.knowFuture = true;
-    runControl.MPC.SPrecourse = false;
+    %% 5d) Unprincipled controller
+    runControl.MPC.SPrecourse = true;
     runControl.MPC.setPoint = false;
-    runControl.MPC.useNPvectors = true;
     
-    [ runningPeak, b0_Up, featVectorsUp ] = ...
+    disp(['=== SIM: UP controller, sees future: ',...
+        num2str(runControl.MPC.UPknowFuture), ' ===']);
+    
+    [ runningPeak, respVecUp, featVecUp, b0_Up_raw ] = ...
         mpcControllerForecastFree( unprincipledController, ...
         testDemandSeries, batteryCapacity, maximumChargeRate, ...
         demandDelays, runControl.MPC, Sim);
     
-    UP_prr(tsTrainIdx) = extractSimulationResults(...
+    UP_prr(trTrIdx) = extractSimulationResults(...
         runningPeak(idxsCommon)', testDemandSeries(idxsCommon), ...
         runControl.MPC.horizon*runControl.MPC.billingPeriodDays);
     
-    figure();
-    plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
-    title(['Unprincipled Controller Peak Import VS Local Demand, ' ...
-        num2str(nObservationTrain) ' data points']);
+    if plotEachTrainLength
+        figure();
+        plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)'])
+        title(['Unprincipled Controller Peak Import VS Local Demand, ' ...
+            num2str(nObsTrain) ' data points']);
+        refline(0, avgLoad);
+    end
     
-    disp(['Completed run with ' num2str(nObservationTrain) ' data points']);
+    disp(['Completed run with ' num2str(nObsTrain) ' data points']);
     disp(['and ' num2str(unprincipledController.numWeightElements) ...
         ' weighted elements']);
     toc;
 end
 
 figure();
-semilogx(tsTrainLengths, [exact_godCast_prr, exact_NP_prr, UP_prr, ...
-    exact_MC_prr]);
-legend({'Exact Controller, God Cast', 'Exact Controller, NP', ...
-    'Unprincipled Controller, God Cast', 'Excat controller, modelCast'});
+subplot(1,2,1);
+semilogx(tsTrainLengths, [exact_NP_prr, exact_MC_prr, exact_godCast_prr, ...
+    UP_prr], '.-');
+legend({'Exact Controller, NP', 'Excat controller, modelCast', ...
+    'Exact Controller, God Cast', 'Unprincipled Controller'});
+grid on;
+ylabel('Peak Reduction Ratio');
+xlabel('No. of training billing periods');
+subplot(1,2,2);
+semilogx(tsTrainLengths, [exact_NP_prr./exact_godCast_prr,...
+    exact_MC_prr./exact_godCast_prr, ...
+    exact_godCast_prr./exact_godCast_prr, UP_prr./exact_godCast_prr],'.-');
+ylabel('Relative Peak Reduction Ratio');
+xlabel('No. of training billing periods');
 grid on;
 
 figure();
-plot([b0_godCast(1:length(b0_Up)); b0_NP(1:length(b0_Up)); b0_Up]');
+plot([respGcTest(1, 1:length(respVecUp)); ...
+    respVecNp(1, 1:length(respVecUp)); respVecUp(1, :)]');
+
 legend({'Exact Controller, God Cast', 'Exact Controller, NP', ...
-    'Unprincipled Controller, God Cast'});
+    'Unprincipled Controller'});
+
 ylabel('Charging decision [kWh]');
 
 figure();
 % Test performance during 'on-line' simulation:
-outputVectorsSim = unprincipledController(featureVectorGc);
-plotregression(b0_godCast, outputVectorsSim);
+outputVectorsSim = unprincipledController(featVecUp);
+plotregression(respGcTest(1,:), outputVectorsSim(1,:));
 xlabel('God cast simulation behavior');
 ylabel('Response of NN to same inputs');
 
 figure();
-plotregression(outputVectorsSim, b0_Up);
+plotregression(outputVectorsSim(1,:), respVecUp(1,:));
 xlabel('Response of NN to godCast inputs');
-ylabel('b0_Up');
+ylabel('b0_Up from t-series simulation');
+
+figure();
+plotregression(outputVectorsSim(1,:), b0_Up_raw);
+xlabel('Response of NN to godCast inputs');
+ylabel('b0_Up_raw from t-series simulation');
 
 toc;
