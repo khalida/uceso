@@ -37,9 +37,12 @@ end
 poolobj = gcp('nocreate');
 delete(poolobj);
 
-% parfor instance = 1:cfg.sim.nInstances
-for instance = 1:cfg.sim.nInstances
-    
+parfor instance = 1:cfg.sim.nInstances
+% for instance = 1:cfg.sim.nInstances
+
+    tempModels = cell(1, cfg.sim.nMethods);     % prevent parfor issues
+    tempTimeTaken = zeros(1, cfg.sim.nMethods);
+
     for methodTypeIdx = 1:cfg.sim.nMethods
         
         switch cfg.sim.methodList{methodTypeIdx} %#ok<*PFBNS>
@@ -48,11 +51,11 @@ for instance = 1:cfg.sim.nInstances
             case 'IMFC'
                 tempTic = tic;
                 
-                trainedModels{instance, methodTypeIdx} = ...
+                tempModels{1, methodTypeIdx} = ...
                     trainForecastFreeController(cfg, ...
                     demandDataTrain(:, instance));
                 
-                timeTaken(instance, methodTypeIdx) = toc(tempTic);
+                tempTimeTaken(1, methodTypeIdx) = toc(tempTic);
                 
             % Skip if method doesn't need training
             case 'NPFC'
@@ -68,10 +71,10 @@ for instance = 1:cfg.sim.nInstances
             case 'MFFC'
                 tempTic = tic;
                 
-                trainedModels{instance, methodTypeIdx} = trainHandle(...
+                tempModels{1, methodTypeIdx} = trainHandle(...
                     cfg, demandDataTrain(:, instance));
                 
-                timeTaken(instance, methodTypeIdx) = toc(tempTic);
+                tempTimeTaken(1, methodTypeIdx) = toc(tempTic);
                 
             otherwise
                 error('Selected method has not been implemented');
@@ -79,6 +82,11 @@ for instance = 1:cfg.sim.nInstances
         end
         disp([cfg.sim.methodList{methodTypeIdx} ' training done!']);
     end
+    
+    % save temporary cellArray of models to the full array:
+    trainedModels(instance, :) = tempModels;
+    timeTaken(instance, :) = tempTimeTaken;
+    
 end
 
 % Kill the parrallel pool (errors tend to occur if pool kept open too long)
