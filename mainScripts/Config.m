@@ -37,7 +37,7 @@ mkdir(cfg.sav.resultsDir);
 %% cfg.sim: Simulation Settings
 cfg.sim.nCustomers = [1, 5, 25];
 cfg.sim.nAggregates = 3;
-cfg.sim.batteryCapacityRatio = 0.10;% fraction of daily mean demand
+cfg.sim.batteryCapacityRatio = 0.05;% fraction of daily mean demand
 cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
 cfg.sim.nDaysTest = 38*7;           % days to run simulation for
 cfg.sim.stepsPerHour = 2;           % Half-hourly data
@@ -80,10 +80,10 @@ cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future?
 
 %% cfg.opt: Optimization settings
 cfg.opt.secondWeight = 0;         % Of secondary objective (chargeWhenCan)
-cfg.opt.knowDemandNow = false;    % Current demand known to optimizer?
+cfg.opt.knowDemandNow = true;    % Current demand known to optimizer?
 cfg.opt.iterationFactor = 1.0;    % To apply to default max. No. iters
 cfg.opt.rewardMargin = true;      % Reward margin from creating new peak?
-cfg.opt.setPointRecourse = true;  % Apply set point recourse?
+cfg.opt.setPointRecourse = false;  % Apply set point recourse?
 cfg.opt.resetPeakToMean = true;   % Reset tracked pk to mean? (otherwise 0)
 cfg.opt.chargeWhenCan = false;
 cfg.opt.suppressOutput = cfg.fc.suppressOutput;
