@@ -1,28 +1,25 @@
 % file: trainRandomForestForecast.m
 % auth: Khalid Abdulla
-% date: 16/01/2016
+% date: 06/04/2016
 % brief: Train Random Forest Forecast Model
 
-function rf = trainRandomForestForecast( demand, trainControl )
+function model = trainRandomForestForecast( cfg, demand )
 
-% INPUTS
-% demand:       is the time-history of demands on which to train the model
-%                divided into training and CV as required
-% trainControl: structure of train control parameters
+%% INPUTS
+% cfg:      Structure containing all config options (including training)
+% demand:   Time-history of demand on which to train the model
 
-% OUTPUTS
-% rf:           trained random forest object
+%% OUTPUTS
+% model:    Trained random forest object
 
-% trainRatio = trainControl.trainRatio;
+% Produce data formated for RF training
+[ featVecs, respVecs ] = computeFeatureResponseVectors( demand,...
+    cfg.fc.nLags, cfg.sim.horizon);
 
-% Produce data formated for NN training
-[ featureVectors, responseVectors ] = ...
-    computeFeatureResponseVectors( demand, trainControl.nLags, ...
-    trainControl.horizon);
+% For random forest we can only regress a single output at a time
+respVecs = respVecs(1, :);
 
-responseVectors = responseVectors(1, :);
-
-rf = TreeBagger(trainControl.nNodes, featureVectors', responseVectors', ...
+model = TreeBagger(cfg.fc.nNodes, featVecs', respVecs', ...
     'method', 'regression', 'OOBPred', 'On').compact;
 
 end

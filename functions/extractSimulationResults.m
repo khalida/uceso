@@ -3,7 +3,7 @@ function [ peakReductionRatio ] = extractSimulationResults( ...
 
 % extractSimulationResults: Extract peak reduction from simulation data
 
-if ~isequal(size(gridPower), size(demandValues))
+if ~isequal(size(gridPower'), size(demandValues))
     error('gridPower and demandValues should have the same size');
 end
 

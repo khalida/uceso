@@ -1,111 +1,50 @@
-function model = generateForecastFreeController(featureVector, ...
-    decisionVector, Sim)
+function model = generateForecastFreeController(cfg, featVecs, respVecs)
 
-% INPUTS:
-%   featureVector:  Input data [nFeatures x nObservations]
-%   decisionVector: Output data [nDecisions x nObservations]
-%   Sim:            Structure containing simulation settings
+%% INPUTS:
+% cfg:      Strcture containing simulations options
+% featVecs: Feature vectors in matrix [nFeat x nObs]
+% respVecs: Response vectors in matrix [nResp x nObs]
 
-% OUTPUTS:
-%   model:          Trained data-driven model.
+%% OUTPUTS:
+% model:    Trained data-driven model.
 
-trainControl = Sim.trainControl;
-
-nObservations = size(featureVector, 2);
-if size(decisionVector, 2) ~= nObservations;
-    error('nObservations must be same in feature and decision vectors');
+nObs = size(featVecs, 2);
+if size(respVecs, 2) ~= nObs;
+    error('nObservations must be same in feature and response vectors');
 end;
 
-switch Sim.forecastModels
+switch cfg.fc.modelType
     
     case 'RF'
+        % Produce one model for the charge decision
+        model.decisionModel = TreeBagger(cfg.fc.nNodesFF, featVecs',...
+            respVecs(1, :)', 'method', 'regression',...
+            'OOBPred', 'On').compact;
         
-        model.decisionModel = TreeBagger(trainControl.nNodesFF,...
-            featureVector', decisionVector(1, :)', 'method',...
-            'regression', 'OOBPred', 'On').compact;
+        % And a second for the peakEnergyEstimation (to allow SP recourse)
+        if cfg.opt.setPointRecourse
+            model.peakEnergy = TreeBagger(cfg.fc.nNodesFF, featVecs',...
+                respVecs(2, :)', 'method', 'regression',...
+                'OOBPred', 'On').compact;
+        end
         
     case 'FFNN'
-        % Separate training and test data:
-        nObservationsTrain = floor(nObservations*trainControl.trainRatio);
-        nObservationsTest = nObservations - nObservationsTrain;
+        % Train NN to output both charge decision and peak energy
+        % using multiple initialisations
+        model = trainFfnnMultiInit(cfg, featVecs, respVecs);
         
-        idxs = randperm(nObservations);
-        idxsTrain = idxs(1:nObservationsTrain);
-        idxsTest = idxs(nObservationsTrain+(1:nObservationsTest));
-        
-        featureVectorTrain = featureVector(:,idxsTrain);
-        decisionVectorTrain = decisionVector(:,idxsTrain);
-        featureVectorTest = featureVector(:,idxsTest);
-        decisionVectorTest = decisionVector(:,idxsTest);
-        
-        % Training Function
-        trainingFunction = 'trainscg';  % Scaled Conjugate Gradient
-        
-        performances = ones(1, trainControl.nStart).*inf;
-        
-        for iStart = 1:trainControl.nStart
-            thisNet = fitnet(trainControl.nNodesFF,trainingFunction);
-            
-            % Choose Input and Output Pre/Post-Processing Functions
-            % For a list of all processing functions type: help nnprocess
-            thisNet.input.processFcns = {'removeconstantrows','mapminmax'};
-            thisNet.output.processFcns = {'removeconstantrows','mapminmax'};
-            
-            % Setup Division of Data for Training, Validation, Testing
-            % For a list of all data division functions type: help nndivide
-            thisNet.divideFcn = 'dividerand';  % Divide data randomly
-            thisNet.divideMode = 'sample';  % Divide up every sample
-            thisNet.divideParam.trainRatio = 70/100;
-            thisNet.divideParam.valRatio = 15/100;
-            thisNet.divideParam.testRatio = 15/100;
-            
-            % Choose a Performance Function
-            % For a list of all performance functions type: help nnperformance
-            thisNet.performFcn = 'mse';  % Mean squared error
-            
-            % Choose Plot Functions
-            % For a list of all plot functions type: help nnplot
-            thisNet.plotFcns = {'plotperform','plottrainstate','ploterrhist', ...
-                'plotregression', 'plotfit'};
-            
-            % Suppress CMD line and GUI outputs
-            thisNet.trainParam.showWindow = false;
-            thisNet.trainParam.showCommandLine = false;
-            
-            % Train the Network
-            trainedNet = train(thisNet,featureVectorTrain,...
-                decisionVectorTrain);
-            
-            thisPerf = mse(decisionVectorTest, ...
-                trainedNet(featureVectorTest));
-            
-            if thisPerf <= min(performances)
-                model = trainedNet;
-            end
-            
-            performances(1, iStart) = thisPerf;
+        if ~cfg.fc.suppressOutput
+            % DEBUGGING: Plot actual VS modelled responses:
+            predictResp = model(featVecs);
+            figure();
+            plot(respVecs(:), predictResp(:), '.');
+            axis equal;
+            grid on;
+            refline(1, 0);
+            xlabel('Actual Responses');
+            ylabel('Modelled Responses');
+            title('FFNN Forecast-Free results');
         end
-        
-        percentageDifference = (max(performances) - min(performances)) ...
-            / min(performances);
-        
-        if percentageDifference > Sim.trainControl.performanceDifferenceThreshold
-            
-            disp(['Percentage Difference: ' num2str(100*percentageDifference)...
-                '. Performances: ' num2str(performances)]);
-        end
-        
-        %% DEBUGGING: Plot the actual VS forecast values:
-        actualResponseTest = decisionVectorTest(:);
-        predictResponseTest = model(featureVectorTest);
-        figure();
-        plot(actualResponseTest, predictResponseTest(:), '.');
-        axis equal;
-        grid on;
-        refline(1, 0);
-        xlabel('Actual Values');
-        ylabel('Predicted Values');
-        title('FFNN Forecast-Free results');
         
     otherwise
         error('Model not yet implemented');

@@ -1,108 +1,116 @@
-function [ runningPeak, respVecs, featVecs, b0_raw ] = mpcControllerForecastFree( model, demand, ...
-    batteryCapacity, maximumChargeRate, demandDelays, MPC, Sim)
+function [ runningPeak, respVecs, featVecs, b0_raw ] = ...
+    mpcControllerForecastFree(cfg, model, demand, demandDelays, battery)
 
 % mpcControllerForecastFree: Time series simulation of a forecast free
-% controller
+            % controller
 
-%% Initialisations
-stateOfCharge = 0.5*batteryCapacity;
+%% INPUT:
+% cfg:          Structure holding running options
+% model:        Trained FF controller object
+% demand:       Vector of demand values [nObs x 1]
+% demandDelays: Vector of demand lags [nLags x 1]
+% battery:      Structure describing the battery
+
+%% OUTPUT:
+% runningPeak:  Vector of current running peak [nIdxs x 1]
+% respVecs:     Matrix of response vectors output by model [nResp x nIdxs]
+% featVecs:     Matrix of feature vectors fed into model [nFeat x nIdxs]
+% b0_raw:       Unconstrained charge decisions from model [nIdxs x 1]
+
+
+%% Initializations
+stateOfCharge = 0.5*battery.capacity;
 nIdxs = length(demand);
-hourNum = Sim.hourNumberTest;
-stepsPerHour = Sim.stepsPerHour;
-maximumChargeEnergy = maximumChargeRate/stepsPerHour; % kW -> kWh/interval
 
-%% Set Default Values:
-MPC = setDefaultValues(MPC, {'knowDemandNow', false, ...
-    'SPrecourse', false, 'resetPeakToMean', false, ...
-    'billingPeriodDays', 1});
-
-if MPC.resetPeakToMean
+if cfg.opt.resetPeakToMean
     peakSoFar = mean(demandDelays);
 else
     peakSoFar = 0;
 end
+
 daysPassed = 0;
-lastIdx = nIdxs-Sim.trainControl.horizon + 1;
-if MPC.SPrecourse
+lastIdx = nIdxs - cfg.sim.horizon + 1;
+
+if cfg.opt.setPointRecourse
     respVecs = zeros(2, lastIdx);           % [b0, peakEst]
 else
     respVecs = zeros(1, lastIdx);           % [b0]
 end
-b0_raw = zeros(1, lastIdx);
+
+b0_raw = zeros(lastIdx, 1);
+
 % featureVector = [demandDelay; stateOfCharges; (demandNow); peakSoFars];
-if MPC.knowDemandNow
-    nFeatures = Sim.trainControl.nLags + 3;
+if cfg.opt.knowDemandNow
+    nFeat = cfg.fc.nLags + 3;
 else
-    nFeatures = Sim.trainControl.nLags + 2;
+    nFeat = cfg.fc.nLags + 2;
 end
-featVecs = zeros(nFeatures, lastIdx);
+featVecs = zeros(nFeat, lastIdx);
 
 %% Pre-Allocations
-runningPeak = zeros(1, lastIdx);
+runningPeak = zeros(lastIdx, 1);
 
 %% Run through time series
 for idx = 1:lastIdx
-    demandNow = demand(idx);
-    hourNow = hourNum(idx);
     
-    if MPC.UPknowFuture
-        % featureVectors = [futureDemand; stateOfCharges; demandNows; peakSoFars];
-        if MPC.knowDemandNow
-            featureVector = [demand(idx:(idx+Sim.trainControl.horizon-1));...
+    demandNow = demand(idx);
+        
+    if cfg.fc.knowFutureFF
+        % featVec = [futureDemand; stateOfCharge; (demandNow); peakSoFar];
+        if cfg.opt.knowDemandNow
+            featVec = [demand(idx:(idx + cfg.sim.horizon - 1));...
                 stateOfCharge; demandNow; peakSoFar];
         else
-            featureVector = [demand(idx:(idx+Sim.trainControl.horizon-1));...
+            featVec = [demand(idx:(idx + cfg.sim.horizon - 1));...
                 stateOfCharge; peakSoFar];
         end
     else
-        % featureVectors = [demandDelays; stateOfCharges; demandNows; peakSoFars];
-        if MPC.knowDemandNow
-            featureVector = [demandDelays; stateOfCharge; demandNow;...
+        % featVec = [demandDelays; stateOfCharge; (demandNow); peakSoFars];
+        if cfg.opt.knowDemandNow
+            featVec = [demandDelays; stateOfCharge; demandNow;...
                 peakSoFar];
         else
-            featureVector = [demandDelays; stateOfCharge; peakSoFar];
+            featVec = [demandDelays; stateOfCharge; peakSoFar];
         end
     end
     
-    featVecs(:, idx) = featureVector;
+    featVecs(:, idx) = featVec;
     
-    switch Sim.forecastModels
+    switch cfg.fc.modelType
         
         case 'RF'
-            % Make forecasts using decision vector random forest model
-            decisionVector = model.decisionModel.predict(featureVector');
+            % Make decision using output of random forest model
+            respVec = model.decisionModel.predict(featVec');
             
             % Apply set point recourse if selected
-            if MPC.SPrecourse
-                peakPower = model.decisionModel.predict(featureVector');
+            if cfg.opt.setPointRecourse
+                peakEnergy = model.peakEnergy.predict(featVec');
                 
-                energyToBatteryNow = decisionVector(1);
+                energyToBatteryNow = respVec(1);
                 b0_raw(idx) = energyToBatteryNow;
-                peakForecastEnergy = max([peakPower; peakSoFar]);
+                peakForecastEnergy = max([peakEnergy; peakSoFar]);
                 
                 if (demandNow + energyToBatteryNow) > peakForecastEnergy
                     energyToBatteryNow = peakForecastEnergy - demandNow;
                 end
             else
-                energyToBatteryNow = decisionVector(1);
+                energyToBatteryNow = respVec(1);
                 b0_raw(idx) = energyToBatteryNow;
             end
             
         case 'FFNN'
-            forecastFreeControllerOutput = model( featureVector );
+            respVec = model( featVec );
             
             % Apply set point recourse if selected
-            if MPC.SPrecourse
-                energyToBatteryNow = forecastFreeControllerOutput(1);
+            if cfg.opt.setPointRecourse
+                energyToBatteryNow = respVec(1);
                 b0_raw(idx) = energyToBatteryNow;
-                peakForecastEnergy = ...
-                    max([forecastFreeControllerOutput(2); peakSoFar]);
-                
+                peakForecastEnergy = max([respVec(2); peakSoFar]);
                 if (demandNow + energyToBatteryNow) > peakForecastEnergy
                     energyToBatteryNow = peakForecastEnergy - demandNow;
                 end
             else
-                energyToBatteryNow = forecastFreeControllerOutput;
+                energyToBatteryNow = respVec;
                 b0_raw(idx) = energyToBatteryNow;
             end
             
@@ -111,33 +119,29 @@ for idx = 1:lastIdx
             
     end
     
-    % Apply control decision, subject to rate and state of charge
-    % constriants
-    % origValue = energyToBatteryNow;
-    
+    % Apply decision, subject to rate and state of charge constraints
     energyToBatteryNow = max([energyToBatteryNow, ...
-        -stateOfCharge, -demandNow, -maximumChargeEnergy]);
+        -stateOfCharge, -demandNow, -battery.maximumChargeEnergy]);
     
     energyToBatteryNow = min([energyToBatteryNow,...
-        (batteryCapacity-stateOfCharge), maximumChargeEnergy]);
+        (battery.capacity-stateOfCharge), battery.maximumChargeEnergy]);
     
     stateOfCharge = stateOfCharge + energyToBatteryNow;
     respVecs(1, idx) = energyToBatteryNow;
     
-    if MPC.SPrecourse
+    if cfg.opt.setPointRecourse
         respVecs(2, idx) = peakForecastEnergy;
     end
     
-    % Update current peak power
-    % Reset if we are at start of day (and NOT first interval)
-    if hourNow == 1 &&  idx ~= 1
+    % Update peak power, reset if we are in new billing period
+    if mod(idx, cfg.sim.stepsPerDay) == 0
         daysPassed = daysPassed + 1;
     end
     
-    if daysPassed == MPC.billingPeriodDays
+    if daysPassed == cfg.sim.billingPeriodDays
         daysPassed = 0;
         
-        if MPC.resetPeakToMean
+        if cfg.opt.resetPeakToMean 
             peakSoFar = mean(demandDelays);
         else
             peakSoFar = 0;

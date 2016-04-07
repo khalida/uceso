@@ -1,86 +1,58 @@
-function [ Sim, pars ] = trainAllForecasts( MPC, Sim, allDemandValues)
+function [ trainedModels, trainTime ] = ...
+    trainAllForecasts(cfg, demandDataTrain)
 
-% trainAllForecasts: Train parameters for all trained forecasts. Run
-%   through each instance and each method and output parameters
-%   of trained forecasts.
+% trainAllForecasts: Train forecast models and forecast-free controller.
+%   Run through each instance and each method and output trained models.
 
-% INPUTS:
-% MPC; Structure containing optimization options
-% Sim; Structure containing simulation and general options (including
-% training options)
-% allDemandValues; Cellarray, each cell containing array of demand values
-                    % for an instance
+%% INPUTS:
+% cfg:              Structure containing all of the running options
+% demandDataTrain:  Matrix with demand data [nIntervalsTrain x nInstances]
 
-% OUTPUTS:
-% Sim; Updated simulation options structure
-% pars; cellarray {nInstances x nMethods} to hold model parameters (models)
+%% OUTPUTS:
+% trainedModels:    Trained forecast and forecast-free controller models
 
 tic;
 
-%% Pre-Allocation
-timeTaken = cell(Sim.nInstances, 1);
-k = Sim.k;
+%% Pre-Allocation:
+timeTaken = zeros(cfg.sim.nInstances, cfg.sim.nMethods);
+trainedModels = cell(cfg.sim.nInstances, cfg.sim.nMethods);
 
-% Parameters for the trained forecasts, and the forecast-free controllers
-pars = cell(Sim.nInstances, Sim.nMethods);
-
-for instance = 1:Sim.nInstances
-    timeTaken{instance} = zeros(Sim.nMethods,1);
-end
-
-Sim.trainIdxs = 1:(Sim.stepsPerHour*Sim.nHoursTrain);
-Sim.hourNumber = mod((1:size(allDemandValues{1}, 1))', k);
-Sim.hourNumberTrain = Sim.hourNumber(Sim.trainIdxs, :);
-
-% Set default model type if not set already:
-Sim = setDefaultValues(Sim, {'forecastModels', 'FFNN'});
-
-switch Sim.forecastModels
+% Choose the appropriate forecast training function
+switch cfg.fc.modelType
     case 'FFNN'
         trainHandle = @trainFfnnMultipleStarts;
         disp('== USING FFNN MODELS ===');
         
-    case 'SARMA'
-        trainHandle = @trainSarma;
-        disp('== USING SARMA MODELS ===');
-        
     case 'RF'
         trainHandle = @trainRandomForestForecast;
         disp('== USING RANDOM FOREST MODELS ===');
-    
+        
     otherwise
-        error('Selected Sim.forecastModels not implemented');
+        error('Selected cfg.fc.modelType not implemented');
 end
 
-% Extract local data from structures for efficiency in parFor loop
-% communication
-nInstances = Sim.nInstances;
-nMethods = Sim.nMethods;
-trainIdxs = Sim.trainIdxs;
-methodList = Sim.methodList;
 
 %% Train Models
+% Delete parrallel pool if it exists
 poolobj = gcp('nocreate');
 delete(poolobj);
 
-parfor instance = 1:nInstances
-% for instance = 1:nInstances
-
-    % for instance = 1:nInstances
-    % Extract aggregated demand
-    demandValuesTrain = allDemandValues{instance}(trainIdxs);
+% parfor instance = 1:cfg.sim.nInstances
+for instance = 1:cfg.sim.nInstances
     
-    for methodTypeIdx = 1:nMethods
-        switch methodList{methodTypeIdx} %#ok<PFBNS>
+    for methodTypeIdx = 1:cfg.sim.nMethods
+        
+        switch cfg.sim.methodList{methodTypeIdx} %#ok<*PFBNS>
             
             % Train forecast-free controller
             case 'IMFC'
                 tempTic = tic;
-                pars{instance, methodTypeIdx} = ...
-                    trainForecastFreeController( demandValuesTrain, Sim,...
-                    MPC);
                 
-                timeTaken{instance}(methodTypeIdx) = toc(tempTic);
+                trainedModels{instance, methodTypeIdx} = ...
+                    trainForecastFreeController(cfg, ...
+                    demandDataTrain(:, instance));
+                
+                timeTaken(instance, methodTypeIdx) = toc(tempTic);
                 
             % Skip if method doesn't need training
             case 'NPFC'
@@ -92,28 +64,29 @@ parfor instance = 1:nInstances
             case 'SP'
                 continue;
                 
-            % Train forecast:
+            % Train forecast model
             case 'MFFC'
                 tempTic = tic;
-                pars{instance, methodTypeIdx} = trainHandle(...
-                    demandValuesTrain, Sim.trainControl);
                 
-                timeTaken{instance}(methodTypeIdx) = toc(tempTic);
+                trainedModels{instance, methodTypeIdx} = trainHandle(...
+                    cfg, demandDataTrain(:, instance));
+                
+                timeTaken(instance, methodTypeIdx) = toc(tempTic);
                 
             otherwise
                 error('Selected method has not been implemented');
                 
         end
-        disp([methodList{methodTypeIdx} ' training done!']);
+        disp([cfg.sim.methodList{methodTypeIdx} ' training done!']);
     end
 end
 
+% Kill the parrallel pool (errors tend to occur if pool kept open too long)
 poolobj = gcp('nocreate');
 delete(poolobj);
 
-Sim.timeTaken = timeTaken;
-Sim.timeForecastTrain = toc;
+trainTime = timeTaken;
 
-disp('Time to end forecast training:'); disp(Sim.timeForecastTrain);
+disp('Time to train models: '); disp(toc);
 
 end

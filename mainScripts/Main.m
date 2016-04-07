@@ -1,52 +1,39 @@
-%% Load Running Configuration
+%% Main Script for IDDFO (Integrated Data-Driven Forecasting &
+% Optimization).
+
+%% (Tidy up &) Load Configuration options
 clearvars; close all; clc;
 tic;
-timeStart = clock;
-disp(timeStart);
-Config;
+cfg = Config(pwd);
 
+
+%% Load Functions into Environment (script)
 LoadFunctions;
 
-%% Read in DATA
-load(dataFileWithPath);
-customerIdxs = cell(Sim.nInstances, 1);
-allDemandValues = cell(Sim.nInstances, 1);
-dataLengthRequired = (Sim.nDaysTrain + Sim.nDaysTest)*...
-    Sim.stepsPerHour*Sim.hoursPerDay;
 
-instance = 0;
-for nCustomerIdx = 1:length(Sim.nCustomers)
-    for trial = 1:Sim.nAggregates
-        instance = instance + 1;
-        customers = Sim.nCustomers(nCustomerIdx);
-        customerIdxs{instance} = ...
-            randsample(size(demandData, 2), customers);
-        allDemandValues{instance} = ...
-            sum(demandData(1:dataLengthRequired,...
-            customerIdxs{instance}), 2);
-    end
-end
+%% Load Data
+disp('======= LOADING DATA =======');
+[ demandDataTrain, demandDataTest ] = loadData( cfg );
 
-% Delete the original demand data (no longer needed)
-clearvars demandData;
 
-%% Train All Forecasts:
+%% Train Forecasts (& forecast-free controller)
 disp('======= FORECAST TRAINING =======');
-[ Sim, pars ] = trainAllForecasts(MPC, Sim, allDemandValues);
+[ trainedModels, trainTime ] = trainAllForecasts(cfg, demandDataTrain);
 
-%% Test All Forecasts:
+
+%% Test All Methods:
 disp('======= FORECAST TESTING =======');
-MPC.trainControl = trainControl;
-[ Sim, results ] = testAllForecasts( pars, allDemandValues, Sim, MPC);
+[ results ] = testAllForecasts(cfg, trainedModels, demandDataTest);
 
-%% Do Plotting:
+
+%% Plotting:
 disp('======= PLOTTING =======');
-plotAllResults(Sim, results);
+plotAllResults(cfg, results);
+
 
 %% Save Results
 disp('======= SAVING =======');
-save(Sim.finalFileName, '-v7.3');
-copyfile('Config.m', Sim.resultsDir);
+save(cfg.sav.finalFileName, '-v7.3');
 
 overAllTime = toc;
 disp('Total Time Taken: ');

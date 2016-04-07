@@ -1,24 +1,28 @@
-function [ featureVectors, decisionVectors ] = ...
-    mpcGenerateForecastFreeExamples(demandGodCast, demand, ...
-    batteryCapacity, maximumChargeRate, demandDelays, Sim, MPC)
+function [ featVecs, respVecs ] = mpcGenerateForecastFreeExamples(cfg, ...
+    demandGodCast, demandData, demandDelays, battery)
 
-% mpcGenerateForecastFreeExamples: Simulate time series behaviour of MPC
-% controller with godCast input to generate forecast-free training
-% examples.
+% mpcGenerateForecastFreeExamples: Simulate t-series behaviour of MPC
+% controller with perfect foresight forecast to generate
+% forecast-free training examples.
+
+%% INPUTS:
+% cfg:              Structure containing all running options
+% demandGodCast:    Matrix of perfect forecasts [nIntervals x horizon]
+% demandData:       Vector of demand values over sim [nIntervals x 1]
+% demandDelays:     Lags of demand for building feature vectors [nLags x 1]
+% battery:          Structure with properties of battery
+
+%% OUTPUTS:
+% featVecs:         Matrix of feature vectors [nFeat x nObs]
+% respVecs:         Matrix of response vectros [nResp x nObs]
+
 
 %% Initializations
-stateOfCharge = 0.5*batteryCapacity;
+stateOfCharge = 0.5*battery.capacity;
 nIdxs = size(demandGodCast, 1);
-hourNum = Sim.hourNumberTrainOnly;
-stepsPerHour = Sim.stepsPerHour;
-maximumChargeEnergy = maximumChargeRate/stepsPerHour; % kW -> kWh/interval
+% kW -> kWh/interval:
 
-% Set default values of MPC structure
-MPC = setDefaultValues(MPC, {'SPrecourse', true, ...
-    'resetPeakToMean', false, 'knowDemandNow', false, ...
-    'billingPeriodDays', 7});
-
-if MPC.resetPeakToMean
+if cfg.opt.resetPeakToMean
     peakSoFar = mean(demandDelays);
 else
     peakSoFar = 0;
@@ -26,78 +30,80 @@ end
 
 daysPassed = 0;
 
+
 %% Pre-Allocations
-% featureVectors = [nLags previous demands; stateOfCharges; (demandNows); peakSoFars];
-if MPC.knowDemandNow
-    featureVectors = zeros(Sim.trainControl.nLags + 3, nIdxs);
+% featVec = [nLags prev demands; stateOfCharge; (demandNow); peakSoFar];
+if cfg.opt.knowDemandNow
+    featVecs = zeros(cfg.fc.nLags + 3, nIdxs);
 else
-    featureVectors = zeros(Sim.trainControl.nLags + 2, nIdxs);
+    featVecs = zeros(cfg.fc.nLags + 2, nIdxs);
 end
 
-% Response <next step charging power, (peakForecastPower)>
-if MPC.SPrecourse
-    decisionVectors = zeros(2, nIdxs);
+% respVec = [b0, (peakForecastPower)]
+if cfg.opt.setPointRecourse
+    respVecs = zeros(2, nIdxs);
 else
-    decisionVectors = zeros(1, nIdxs);
+    respVecs = zeros(1, nIdxs);
 end
 
 
 %% Run through time series
+
 for idx = 1:nIdxs
-    demandNow = demand(idx);
-    hourNow = hourNum(idx);
+    demandNow = demandData(idx);
     
-    % Use godCast as we want on-line controller to be as effective
-    % as possible
+    % Use godCast as we want FF controller to be as good as possible
     forecast = demandGodCast(idx, :)';
     
-    % And we're not using setPoint:
-    MPC.setPoint = false;
+    % We're not using setPoint:
+    cfg.opt.setPoint = false;
     
-    % Find optimal battery charging actions
-    [energyToBattery, ~] = controllerOptimizer(forecast, stateOfCharge, ...
-        demandNow, batteryCapacity, maximumChargeRate, stepsPerHour, ...
-        peakSoFar, MPC);
+    % Find optimal battery charging action
+    [energyToBattery, ~] = controllerOptimizer(cfg, forecast, ...
+        stateOfCharge, demandNow, battery, peakSoFar);
     
     % Save feature and response vectors:
-    % featureVectors = [nLags previous demands; stateOfCharges; (demandNows); peakSoFars];
-    if MPC.knowDemandNow
-        featureVectors(:, idx) = [demandDelays; stateOfCharge; ...
+    % featVec = [nLags prev demand; stateOfCharge; (demandNow); peakSoFar];
+    if cfg.opt.knowDemandNow
+        featVecs(:, idx) = [demandDelays; stateOfCharge; ...
             demandNow; peakSoFar];
     else
-        featureVectors(:, idx) = [demandDelays; stateOfCharge; peakSoFar];
+        featVecs(:, idx) = [demandDelays; stateOfCharge; peakSoFar];
     end
     
     % Save data for set-point recourse if required
-    if MPC.SPrecourse
+    if cfg.opt.setPointRecourse
         % Peak power over horizon if forecasts correct and actions taken
         peakForecastPower = max([energyToBattery(:) + forecast(:); peakSoFar]);
-        decisionVectors(2, idx) = peakForecastPower;
+        respVecs(2, idx) = peakForecastPower;
     end
     
     energyToBatteryNow = energyToBattery(1);
-    decisionVectors(1, idx) =  energyToBatteryNow;
+    respVecs(1, idx) =  energyToBatteryNow;
     
     % Apply control action to plant, subject to rate and state of charge
-    % constraints
+    % constraints (NB: this should be done in a separate simulation model)
     energyToBatteryNow = max([energyToBatteryNow, -stateOfCharge, ...
-        -demandNow, -maximumChargeEnergy]);
+        -demandNow, -battery.maximumChargeEnergy]);
     
     energyToBatteryNow = min([energyToBatteryNow, ...
-        (batteryCapacity-stateOfCharge), maximumChargeEnergy]);
+        (battery.capacity-stateOfCharge), battery.maximumChargeEnergy]);
     
     stateOfCharge = stateOfCharge + energyToBatteryNow;
+    if stateOfCharge > battery.capacity || stateOfCharge < 0
+        error('Battery state of charge out of range');
+    end
     
-    % Update current peak energy
-    % Reset if we are at start of day (and NOT first interval)
-    if hourNow == 0
+    % Update current peak energy reset if we are at start of
+    % billing period
+    if mod(idx, cfg.sim.stepsPerDay) == 0
         daysPassed = daysPassed + 1;
     end
     
-    if daysPassed == MPC.billingPeriodDays
+    if daysPassed == cfg.sim.billingPeriodDays
         daysPassed = 0;
         
-        if MPC.resetPeakToMean
+        if cfg.opt.resetPeakToMean
             peakSoFar = mean(demandDelays);
         else
             peakSoFar = 0;

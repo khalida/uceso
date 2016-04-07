@@ -12,8 +12,8 @@ function [ featureVectors, responseVectors ] = ...
 % horizon:         Legnth of horizon to include as output
 
 % OUTPUTS
-% featureVectors: [nLags x nObservations], matrix of feature vectors
-% responseVectors: [horizon x nObservations], matrix of response vectors
+% featureVectors: [nLags x nObs], matrix of feature vectors
+% responseVectors: [horizon x nObs], matrix of response vectors
 
 % nObserverations is determined from the length of the original time-series
 
@@ -30,23 +30,23 @@ timeSeriesLength = length(inputTimeSeries);
 
 %% Determine the appropriate indices
 if length(nLags) == 1
-    nObservations = timeSeriesLength - nLags - horizon + 1;
+    nObs = timeSeriesLength - nLags - horizon + 1;
     maxLag = nLags;
 else
-    nObservations = timeSeriesLength - max(nLags) - horizon + 1;
+    nObs = timeSeriesLength - max(nLags) - horizon + 1;
     [maxLag, maxIdx] = max(nLags);
     if maxIdx ~= 1
         error('Put largest lags first (chronologically)');
     end
 end
 
-if nObservations <= 0, error('Insufficient Data'); end
+if nObs <= 0, error('Insufficient Data'); end
 
-lagIndices = repmat(1:maxLag, [nObservations, 1]) + ...
-    repmat((0:(nObservations-1))', [1, maxLag]);
+lagIndices = repmat(1:maxLag, [nObs, 1]) + ...
+    repmat((0:(nObs-1))', [1, maxLag]);
 
-responseIndices = repmat(maxLag + (1:horizon), [nObservations, 1]) + ...
-    repmat((0:(nObservations-1))', [1, horizon]);
+responseIndices = repmat(maxLag + (1:horizon), [nObs, 1]) + ...
+    repmat((0:(nObs-1))', [1, horizon]);
 
 if max(responseIndices(:)) ~= timeSeriesLength
     error('Problem with extracting indices');

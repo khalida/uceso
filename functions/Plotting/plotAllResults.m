@@ -1,21 +1,21 @@
-function plotAllResults( Sim, results)
+function plotAllResults( cfg, results)
 
 % plotAllResultsMetricSelect: Plot outputs from 'trainAllForecasts' and
 % 'testAllFcasts' functions.
 
 % Expand fields (of data structures)
-allKWhs = results.allKWhs;
+meanKWhs = results.meanKWhs;
 peakReductionsTrialFlattened = results.peakReductionsTrialFlattened;
 smallestExitFlag = results.smallestExitFlag;
 peakReductions = results.peakReductions;
 lossTestResults = results.lossTestResults;
 
-nDaysTrain = Sim.nDaysTrain;
-nDaysTest = Sim.nDaysTest;
+nDaysTrain = cfg.fc.nDaysTrain;
+nDaysTest = cfg.sim.nDaysTest;
 
-methodList = Sim.methodList;
-nMethods = Sim.nMethods;
-nInstances = Sim.nInstances;
+methodList = cfg.sim.methodList;
+nMethods = cfg.sim.nMethods;
+nInstances = cfg.sim.nInstances;
 
 %% 1) Plot all individual peak reduction ratios VS Aggregation Size
 % With subplots for absolute and relative performance
@@ -24,11 +24,11 @@ fig_1 = figure();
 
 % Absolute Peak Reduction Ratios
 subplot(1, 2, 1);
-plot(allKWhs(:), peakReductionsTrialFlattened', '.', 'markers', 20);
+plot(meanKWhs(:), peakReductionsTrialFlattened', '.', 'markers', 20);
 hold on;
 % Plot warning circles about optimality
 warnPeakReductions = peakReductionsTrialFlattened(smallestExitFlag < 1);
-extendedKWhs = repmat(allKWhs(:)', [nMethods, 1]);
+extendedKWhs = repmat(meanKWhs(:)', [nMethods, 1]);
 warnkWhs = extendedKWhs(smallestExitFlag < 1);
 if (isempty(warnkWhs))
     warnkWhs = -1;
@@ -54,7 +54,7 @@ peakReductionsRelative = peakReductions./repmat(...
 peakReductionsRelativeTrialFlattened = reshape(peakReductionsRelative,...
     [nMethods, nInstances]);
 
-plot(allKWhs(:), peakReductionsRelativeTrialFlattened', '.','markers', 20);
+plot(meanKWhs(:), peakReductionsRelativeTrialFlattened', '.','markers', 20);
 hold on;
 % Plot warning circles about optimality
 warnPeakReductions = peakReductionsRelativeTrialFlattened(...
@@ -72,7 +72,7 @@ legend([methodList, {'Some intervals not solved to optimality'}],...
     'Location', 'best', 'Orientation', 'vertical', 'Interpreter', 'none');
 
 hold off;
-print(fig_1, '-dpdf', [Sim.resultsDir filesep ...
+print(fig_1, '-dpdf', [cfg.sav.resultsDir filesep ...
     'allPrrResults.pdf']);
 
 
@@ -86,7 +86,7 @@ meanPeakReductions = ...    % nCustomers X forecastTypes
     squeeze(mean(peakReductions(selectedForecasts, :, :), 2));
 stdPeakReductions = ...
     squeeze(std(peakReductions(selectedForecasts, :, :),[], 2));
-meanKWhs = mean(allKWhs, 1); % nCustomers X 1
+meanKWhs = mean(meanKWhs, 1); % nCustomers X 1
 errorbar(repmat(meanKWhs, [length(selectedForecasts), 1])', ...
     meanPeakReductions',stdPeakReductions','.-', 'markers', 20);
 xlabel('Mean Load [kWh/interval]');
@@ -96,7 +96,7 @@ legend(selectedForecastLabels, 'Interpreter', 'none',...
 grid on;
 hold off;
 
-print(fig_2, '-dpdf', [Sim.resultsDir filesep ...
+print(fig_2, '-dpdf', [cfg.sav.resultsDir filesep ...
     'absolutePrrVsAggregationSize.pdf']);
 
 
@@ -117,7 +117,7 @@ legend(selectedForecastLabels, 'Interpreter', 'none',...
 grid on;
 hold off;
 
-print(fig_3, '-dpdf', [Sim.resultsDir filesep ...
+print(fig_3, '-dpdf', [cfg.sav.resultsDir filesep ...
     'relativePrrVsAggregationSize.pdf']);
 
 %% 4) BoxPlots of Rel/Abs PRR for each Method (across all instances)
@@ -141,7 +141,7 @@ boxplot(peakReductionsRelativeFlattened', 'labels', ...
 ylabel('Mean PRR relative to perfect forecast');
 grid on;
 
-print(fig_4, '-dpdf', [Sim.resultsDir filesep ...
+print(fig_4, '-dpdf', [cfg.sav.resultsDir filesep ...
     'allPrrResultsBoxPlot.pdf']);
 
 %% 5) Box Plots of forecast errors for forecast-based methods
@@ -151,7 +151,7 @@ fig_5 = figure();
 forecastDrivenMethods = {'NPFC', 'MFFC', 'PFFC'};
 forecastDrivenIdxs = [];
 for ii = 1:length(methodList);
-    if ismember(Sim.methodList{ii}, forecastDrivenMethods)
+    if ismember(methodList{ii}, forecastDrivenMethods)
         forecastDrivenIdxs = [forecastDrivenIdxs ii]; %#ok<AGROW>
     end
 end
@@ -160,22 +160,22 @@ boxplot(lossTestResults(forecastDrivenIdxs, :)', 'labels', ...
 ylabel('Forecast MSE [kWh^2]');
 grid on;
 
-print(fig_5, '-dpdf', [Sim.resultsDir filesep ...
+print(fig_5, '-dpdf', [cfg.sav.resultsDir filesep ...
     'forecastMseResultsBoxPlot.pdf']);
 
 %% 6) Version of forecasting performance split out by aggregation size:
 fig_6 = figure();
-nCustomerGroupSizes = length(Sim.nCustomers);
+nCustomerGroupSizes = length(cfg.sim.nCustomers);
 for customerGroupSize = 1:nCustomerGroupSizes
     subplot(nCustomerGroupSizes, 1, customerGroupSize);
     boxplot(lossTestResults(forecastDrivenIdxs, :, customerGroupSize)',...
         'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
     
     ylabel('Forecast MSE [kWh^2]')
-    title([num2str(Sim.nCustomers(customerGroupSize)), ' customer(s)']);
+    title([num2str(cfg.sim.nCustomers(customerGroupSize)), ' customer(s)']);
     
     grid on;
 end
 
-print(fig_6, '-dpdf', [Sim.resultsDir filesep ...
+print(fig_6, '-dpdf', [cfg.sav.resultsDir filesep ...
     'forecastMseResultsBoxPlot_splitByAggregationSize.pdf']);

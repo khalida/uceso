@@ -4,24 +4,25 @@
 % brief: Given a trained random forest, and new inputs for a fcast origin,
 %       create a new forecast (recusrively).
 
-function [ forecast ] = forecastRandomForest( rf, demand, trainControl )
+function [ forecast ] = forecastRandomForest(cfg, trainedModel, featVecs)
 
 % INPUT:
-% rf: MATLAB CompactTreeBagger object
-% demand: input data [nInputs x nObservations]
-% trainControl: structure of train controller parameters
+% cfg:          Structure of running options
+% trainedModel: Trained forecasting model
+% featVecs:     Input data [nFeat x nObs]
 
 % OUPUT:
-% forecast: output forecast [nResponses x nObservations]
+% forecast:     Output forecast [horizon x nObs]
 
-nLags = trainControl.nLags;
-nObservations = size(demand, 2);
-X = demand((end - nLags + 1):end, :);
-forecast = zeros(trainControl.horizon, nObservations);
+nLags = cfg.fc.nLags;
+nObs = size(featVecs, 2);
+X = featVecs((end - nLags + 1):end, :);
+forecast = zeros(cfg.sim.horizon, nObs);
 
-for idx = 1:trainControl.horizon
+%% Produce forecasts one-step at a time
+for idx = 1:cfg.sim.horizon
     % Produce a 1-step forecast
-    forecast(idx, :) = rf.predict(X');
+    forecast(idx, :) = trainedModel.predict(X');
     
     % Roll the data on one time-step
     X(1:(nLags-1), :) = X(2:nLags, :);
