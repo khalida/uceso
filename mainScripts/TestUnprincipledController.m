@@ -18,7 +18,7 @@ clearvars; close all; clc;
 rng(42);
 tic;
 LoadFunctions;
-plotEachTrainLength = false;  %#ok<*UNRCH>
+plotEachTrainLength = true;  %#ok<*UNRCH>
 
 %% 1) Running Options
 % Load from Config():
@@ -27,9 +27,9 @@ cfg = Config(pwd);
 
 %% Declare properties of artificial demand signal
 sglMagnitude = 5;
-noiseMagnitudes = [0, 1, 2, 3, 4, 5, 7.5, 10, 15];
-tsTrainLengths = [16, 32];
-tsTestLength = 50*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+noiseMagnitudes = [0, 2.5, 5, 7.5, 10];
+tsTrainLengths = [2]; %#ok<NBRAK>
+tsTestLength = 2*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 % Initialize results vectors
 prr_UC = zeros(length(tsTrainLengths), length(noiseMagnitudes));
@@ -46,27 +46,19 @@ for tsTrIdx = 1:length(tsTrainLengths)
     parfor noiseIdx = 1:length(noiseMagnitudes)
         
         runControl = [];        % avoid parfor error
-        battery = [];
         
         noiseMagnitude = noiseMagnitudes(noiseIdx);
         
         %% 2) Create artificial data
         disp('=== Creating Data ===');
-        timeSeriesData = noisySine(sglMagnitude, cfg.sim.horizon,...
+        timeSeriesData = noisySine(sglMagnitude, cfg.fc.seasonalPeriod,...
             noiseMagnitude, tsTrainLength + tsTestLength); %#ok<*PFBNS>
         
         timeSeriesData = max(0, timeSeriesData);
         avgLoad = mean(timeSeriesData);
         
         % Declare battery properties
-        battery.capacity = avgLoad*cfg.sim.batteryCapacityRatio*...
-            cfg.sim.stepsPerDay;
-        
-        battery.maximumChargeRate = cfg.sim.batteryChargingFactor*...
-            battery.capacity;
-        
-        battery.maximumChargeEnergy = battery.maximumChargeRate/...
-            cfg.sim.stepsPerHour;
+        battery = makeBattery(avgLoad, cfg);        
 
         trainDemandSeries = timeSeriesData(1:tsTrainLength);
         testDemandSeries = timeSeriesData((length(trainDemandSeries)...
@@ -76,7 +68,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             error('Test time series length not as expected');
         end
         
-        noiseFreeTs = noisySine(sglMagnitude, cfg.sim.horizon, 0, ...
+        noiseFreeTs = noisySine(sglMagnitude, cfg.fc.seasonalPeriod, 0, ...
             tsTrainLength + tsTestLength);
         
         noiseFreeTs = max(0, noiseFreeTs);
@@ -252,7 +244,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.setPoint = true;
         runControl.modelCast = false;
         
-        disp('=== SIM: Exact controller, NP ===');
+        disp('=== SIM: SP Controller ===');
         [ runningPeak, exitFlag, fcUsed, ~, ~ ] = ...
             mpcController(cfg, [], godCastTest, testDemandData, ...
             demandDelays, battery, runControl);
@@ -293,7 +285,7 @@ end
 % xlabel('No. of training billing periods');
 % grid on;
 
-figure();
+fig_1 = figure();
 for idx = 1:length(tsTrainLengths)
     subplot(length(tsTrainLengths), 2, 2*idx-1);
     plot((noiseMagnitudes./sglMagnitude)', [prr_exactNP(idx, :);...
@@ -320,6 +312,13 @@ for idx = 1:length(tsTrainLengths)
     xlabel('Noise-to-signal Ratio');
     grid on;
 end
+
+% Save the above figure:
+print(fig_1, '-dpdf', [cfg.sav.resultsDir filesep ...
+    'TestUnprincipledControllerResults.pdf']);
+
+% And the data:
+save([cfg.sav.resultsDir filesep 'TestUnpCtrlrResults.mat'], '-v7.3');
 
 % figure();
 % plot([respGcTest(1, 1:length(respVecUp)); ...

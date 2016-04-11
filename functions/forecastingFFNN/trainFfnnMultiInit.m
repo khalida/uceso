@@ -33,12 +33,15 @@ performance = zeros(cfg.fc.nStart, 1);
 allNets = cell(cfg.fc.nStart, 1);
 modelResponses = cell(cfg.fc.nStart, 1);
 
+h = waitbar(0, 'Running trainFfnnMultiInit');
 for iStart = 1:cfg.fc.nStart
+    waitbar(iStart/cfg.fc.nStart, h);
     allNets{iStart} = trainFfnn(cfg, featVecsTrain, respVecsTrain);
     modelResponses{iStart} = allNets{iStart}(featVecsVal);
     performance(iStart) = mean(mse(respVecsVal, ...
         modelResponses{iStart}, 2));
 end
+delete(h);
 
 [~, idxBest] = min(performance);
 

@@ -90,8 +90,11 @@ for idx = 1:nIdxs
         (battery.capacity-stateOfCharge), battery.maximumChargeEnergy]);
     
     stateOfCharge = stateOfCharge + energyToBatteryNow;
-    if stateOfCharge > battery.capacity || stateOfCharge < 0
-        error('Battery state of charge out of range');
+    if stateOfCharge > battery.capacity + 1e-6 ||...
+            stateOfCharge < -1e-6
+        error(['Battery state of charge out of range: ' ...
+            num2str(stateOfCharge) ', capacity: ' ...
+            num2str(battery.capacity)]);
     end
     
     % Update current peak energy reset if we are at start of

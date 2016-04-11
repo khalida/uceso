@@ -68,7 +68,10 @@ featVecs = zeros(nFeatures, nIdxs);
 
 
 %% Run through time series
+h = waitbar(0, 'Running mpcController');
+
 for idx = 1:nIdxs;
+    waitbar(idx/nIdxs, h);
     demandNow = demand(idx);
     
     if runControl.godCast
@@ -205,5 +208,6 @@ for idx = 1:nIdxs;
     % Shift demandDelays (and add current demand)
     demandDelays = [demandDelays(2:end); demandNow];
 end
+delete(h);
 
 end

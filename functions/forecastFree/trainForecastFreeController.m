@@ -25,13 +25,7 @@ demandDataTrainOnly = demandDataTrainOnly(1:nTrainIdxs);
 %% Set-up parameters for on-line simulation
 meanDemand = mean(demandDataTrainOnly);
 
-battery.capacity = meanDemand*cfg.sim.batteryCapacityRatio*...
-    cfg.sim.stepsPerDay;
-
-battery.maximumChargeRate = cfg.sim.batteryChargingFactor*battery.capacity;
-
-battery.maximumChargeEnergy = battery.maximumChargeRate/...
-    cfg.sim.stepsPerHour;
+battery = makeBattery(meanDemand, cfg);
 
 %% Simulate Model to create training examples
 [ featVecs, respVecs] = mpcGenerateForecastFreeExamples(cfg, ...

@@ -39,17 +39,10 @@ disp('===== Forecast Testing =====')
 for instance = 1:cfg.sim.nInstances
 
     % Avoid parfor errors:
-    battery = [];
     runControl = []; 
+    
     %% Battery properties
-    battery.capacity = meanKWhs(instance)*...
-        cfg.sim.batteryCapacityRatio*cfg.sim.stepsPerDay;
-    
-    battery.maximumChargeRate = ...
-        cfg.sim.batteryChargingFactor*battery.capacity;
-    
-    battery.maximumChargeEnergy = battery.maximumChargeRate/...
-        cfg.sim.stepsPerHour;
+    battery = makeBattery(meanKWhs(instance), cfg);
     
     % Separate data into that used for delays, and actual testing
     delayIdxs = 1:cfg.fc.nLags;

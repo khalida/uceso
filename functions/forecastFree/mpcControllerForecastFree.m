@@ -51,8 +51,10 @@ featVecs = zeros(nFeat, lastIdx);
 runningPeak = zeros(lastIdx, 1);
 
 %% Run through time series
+h = waitbar(0, 'Running mpcControllerForecastFree');
+
 for idx = 1:lastIdx
-    
+    waitbar(idx/lastIdx, h);
     demandNow = demand(idx);
         
     if cfg.fc.knowFutureFF
@@ -156,5 +158,6 @@ for idx = 1:lastIdx
     % Shift demand delays (and add current demand)
     demandDelays = [demandDelays(2:end); demandNow];
 end
+delete(h);
 
 end
