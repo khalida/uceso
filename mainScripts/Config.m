@@ -35,10 +35,10 @@ mkdir(cfg.sav.resultsDir);
 
 
 %% cfg.sim: Simulation Settings
-cfg.sim.nCustomers = [1, 5, 25];
-cfg.sim.nAggregates = 3;
+cfg.sim.nCustomers = [1, 5, 25, 125];
+cfg.sim.nAggregates = 9;
 cfg.sim.batteryCapacityRatio = 0.10;% fraction of daily mean demand
-cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
+cfg.sim.batteryChargingFactor = 4;  % ratio of charge rate to capacity
 cfg.sim.nDaysTest = 38*7;           % days to run simulation for
 cfg.sim.stepsPerHour = 2;           % Half-hourly data
 cfg.sim.hoursPerDay = 24;
@@ -59,7 +59,7 @@ cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
 cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
-cfg.fc.nStart = 3;                  % No. initializations
+cfg.fc.nStart = 5;                  % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
 cfg.fc.mseEpochs = 4000;

@@ -15,6 +15,7 @@ peakPowers = cell(cfg.sim.nInstances, 1);
 smallestExitFlag = cell(cfg.sim.nInstances, 1);
 meanKWhs = zeros(cfg.sim.nInstances, 1);
 lossTestResults = cell(cfg.sim.nInstances, 1);
+noiseSglRatio = cell(cfg.sim.nInstances, 1);
 featureVectorsFF = cell(cfg.sim.nInstances, 1);
 featureVectors = cell(cfg.sim.nInstances, 1);
 
@@ -23,6 +24,7 @@ for instance = 1:cfg.sim.nInstances
     peakPowers{instance} = zeros(cfg.sim.nMethods,1);
     smallestExitFlag{instance} = zeros(cfg.sim.nMethods,1);
     lossTestResults{instance} = zeros(cfg.sim.nMethods, 1);
+    noiseSglRatio{instance} = zeros(cfg.sim.nMethods, 1);
     meanKWhs(instance) = mean(demandData(:, instance));
 end
 
@@ -35,8 +37,8 @@ poolobj = gcp('nocreate');
 delete(poolobj);
 
 disp('===== Forecast Testing =====')
-% parfor instance = 1:cfg.sim.nInstances
-for instance = 1:cfg.sim.nInstances
+parfor instance = 1:cfg.sim.nInstances
+% for instance = 1:cfg.sim.nInstances
 
     % Avoid parfor errors:
     runControl = []; 
@@ -115,6 +117,9 @@ for instance = 1:cfg.sim.nInstances
         if (~isForecastFree && ~isSetPoint)
             lossTestResults{instance}(methodType) = mse(godCast', ...
                 forecastUsed);
+            
+            noiseSglRatio{instance}(methodType) = sqrt(mse(godCast', ...
+                forecastUsed))/rms(forecastUsed(:));
         end
     end
     
@@ -139,6 +144,7 @@ peakPowersArray = zeros(cfg.sim.nMethods, cfg.sim.nAggregates,...
 peakReductionsArray = peakPowersArray;
 smallestExitFlagArray = peakPowersArray;
 lossTestResultsArray = peakPowersArray;
+noiseSglRatioArray = peakPowersArray;
 meanKWhsArray = zeros(cfg.sim.nAggregates, length(cfg.sim.nCustomers));
 
 instance = 0;
@@ -162,6 +168,8 @@ for nCustIdx = 1:length(cfg.sim.nCustomers)
             lossTestResultsArray(iMethod, trial, nCustIdx) = ...
                 lossTestResults{instance}(iMethod);
             
+            noiseSglRatioArray(iMethod, trial, nCustIdx) = ...
+                noiseSglRatio{instance}(iMethod);
         end
     end
 end
@@ -182,6 +190,7 @@ results.peakPowersTrialFlattened = peakPowersTrialFlattened;
 results.smallestExitFlag = smallestExitFlagArray;
 results.meanKWhs = meanKWhsArray;
 results.lossTestResults = lossTestResultsArray;
+results.noiseSglRatio = noiseSglRatioArray;
 results.featureVectorsFF = featureVectorsFF;
 results.featureVectors = featureVectors;
 
