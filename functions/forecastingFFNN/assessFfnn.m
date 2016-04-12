@@ -4,7 +4,7 @@
 % brief: Given a neural network test time-series, assess the test MSE
 
 
-function [ mseTest ] = assessFfnn( net, demand, ~ )
+function [ mseTest, rmsTest ] = assessFfnn(~, net, demand)
 
 % INPUT:
 % net: MATLAB trained neural network object
@@ -16,7 +16,9 @@ nLags = net.input.size;
 horizon = net.output.size;
 [featureVectors, responseVectors] = computeFeatureResponseVectors( ...
     demand, nLags, horizon);
-    
-mseTest = mse(responseVectors, net(featureVectors));
+
+testFc = net(featureVectors);
+mseTest = mse(responseVectors, testFc);
+rmsTest = rms(testFc(:));
 
 end

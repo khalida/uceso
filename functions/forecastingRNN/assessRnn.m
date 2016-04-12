@@ -3,7 +3,7 @@
 % date: 04/04/2016
 % brief: Given a neural network test time-series, assess the test MSE
 
-function [ mseTest ] = assessRnn( net, demand, trainControl )
+function [ mseTest, rmsTest ] = assessRnn(cfg, net, demand)
 
 % INPUT:
 % net: MATLAB trained recursive neural network object
@@ -18,12 +18,15 @@ horizon = net.output.size;
 
 x = con2seq(featureVectors);
 mses = zeros(length(x), 1);
+rmss = zeros(length(x), 1);
 
 for idx = 1:length(x)
-    [ thisFc, net ] = forecastRnn(net, x(idx), trainControl);
+    [ thisFc, net ] = forecastRnn(cfg, net, x(idx));
     mses(idx) = mse(responseVectors, cell2mat(thisFc));
+    rmss = rms(thisFc);
 end
 
 mseTest = mean(mses);
+rmsTest = rms(rmss);
 
 end

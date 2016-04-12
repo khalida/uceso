@@ -4,7 +4,7 @@
 % brief: Given a variable-selected NN and a test demand time-series return
             % the MSE on the new test-set.
 
-function [ mseTest ] = assessVsnn( net, demand, ~)
+function [ mseTest, rmsTest ] = assessVsnn(~, net, demand)
 
 % INPUT:
 % net: MATLAB trained neural network object
@@ -22,6 +22,8 @@ horizon = net.output.size;
 [featureVectors, responseVectors] = computeFeatureResponseVectors(...
     demand, nLags, horizon);
 
-mseTest = mse(responseVectors, net(featureVectors));
+testFc = net(featureVectors);
+mseTest = mse(responseVectors, testFc);
+rmsTest = rms(testFc(:));
 
 end

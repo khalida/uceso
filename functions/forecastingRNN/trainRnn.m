@@ -1,21 +1,21 @@
-function [ model ] = trainRnn(ts, trainControl)
+function [ model ] = trainRnn(cfg, ts)
 
 %trainRnn Produce recursive neural network model based on:
 
 %% INPUT
-% ts:           time series to be forecast
-% trainControl: structure of training options
+% cfg:      structure of parameters
+% ts:       time series to be forecast
 
 %% OUTPUT
 % model:        matlab layer recurrent neural network model
 
 [featVecs, respVecs] = computeFeatureResponseVectors(ts, 1, ...
-    trainControl.horizon);
+    cfg.sim.horizon);
 
 t = con2seq(respVecs);
 x = con2seq(featVecs);
 
-model = layrecnet(1:trainControl.nRecursive,trainControl.nNodes);
+model = layrecnet(1:cfg.fc.nRecursive, cfg.fc.nNodes);
 
 % Prepare data for training:
 [X,Xi,Ai,T] = preparets(model,x,t);

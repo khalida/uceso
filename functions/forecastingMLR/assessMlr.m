@@ -4,7 +4,7 @@
 % brief: Given a trained MLR forcast and new time-series output the mean
         % test MSE
 
-function [ mseTest ] = assessMlr( model, demand, ~)
+function [ mseTest, rmsTest ] = assessMlr(~, model, demand)
 
 % INPUT:
 % model: Coefficients of MLR model
@@ -19,6 +19,8 @@ horizon = size(model, 2);
 [featureVectors, responseVectors] = computeFeatureResponseVectors(...
     demand, nLags, horizon);
 
-mseTest = mse(responseVectors, (featureVectors'*model)');
+testFc = (featureVectors'*model)';
+mseTest = mse(responseVectors, testFc);
+rmsTest = rms(testFc(:));
 
 end
