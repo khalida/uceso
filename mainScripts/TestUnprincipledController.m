@@ -93,8 +93,10 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.godCast = true;
         runControl.naivePeriodic = false;
         runControl.setPoint = false;
+        runControl.modelCast = false;
+        runControl.forecastFree = false;
         
-        [ ~, ~, ~, responseGc, featureVectorGc ] = mpcController(cfg, ...
+        [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(cfg, ...
             [], godCastTrain, trainDemandData, demandDelays, battery,...
             runControl);
         
@@ -139,13 +141,14 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.naivePeriodic = false;
         runControl.setPoint = false;
         runControl.modelCast = false;
+        runControl.forecastFree = false;
         
         demandDelays = testDemandSeries(1:cfg.fc.nLags);
         testDemandData = testDemandSeries((cfg.fc.nLags + 1):end);
         godCastTest = createGodCast(testDemandData, cfg.sim.horizon);
         
         disp('=== SIM: Exact controller, godCast ===');
-        [ runningPeak, ~, ~, respGcTest, featVectorGcTest ] = ...
+        [ runningPeak, ~, ~, respGcTest, featVectorGcTest, ~] = ...
             mpcController(cfg, [], godCastTest, testDemandData, ...
             demandDelays, battery, runControl);
         
@@ -176,9 +179,10 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.naivePeriodic = false;
         runControl.setPoint = false;
         runControl.modelCast = true;
+        runControl.forecastFree = false;
                         
         disp('=== SIM: Exact controller, modelCast ===');
-        [ runningPeak, ~, ~, respVectorMc, featVectorMc ] = ...
+        [ runningPeak, ~, ~, respVectorMc, featVectorMc, ~] = ...
             mpcController(cfg, [], modelCast, testDemandData, ...
             demandDelays, battery, runControl);
         
@@ -200,9 +204,10 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.naivePeriodic = true;
         runControl.setPoint = false;
         runControl.modelCast = false;
+        runControl.forecastFree = false;
         
         disp('=== SIM: Exact controller, NP ===');
-        [ runningPeak, ~, ~, respVecNp, featVecNp ] = ...
+        [ runningPeak, ~, ~, respVecNp, featVecNp, ~] = ...
             mpcController(cfg, [], godCastTest, testDemandData, ...
             demandDelays, battery, runControl);
 
@@ -224,13 +229,15 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.naivePeriodic = false;
         runControl.setPoint = false;
         runControl.modelCast = false;
+        runControl.forecastFree = true;
         
         disp(['=== SIM: UP controller, sees future: ',...
             num2str(cfg.fc.knowFutureFF), ' ===']);
         
-        [ runningPeak, respVecUp, featVecUp, b0_Up_raw ] = ...
-            mpcControllerForecastFree(cfg, unprincipledController, ...
-            testDemandData, demandDelays, battery);
+        [ runningPeak, ~, ~, respVecUp, featVecUp, b0_Up_raw ] = ...
+            mpcController(cfg, unprincipledController, ...
+            godCastTest, testDemandData, demandDelays, battery, ...
+            runControl);
         
         prr_UC(tsTrIdx, noiseIdx) = extractSimulationResults(...
             runningPeak(idxsCommon)', testDemandSeries(idxsCommon), ...
@@ -249,9 +256,10 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.naivePeriodic = false;
         runControl.setPoint = true;
         runControl.modelCast = false;
+        runControl.forecastFree = false;
         
         disp('=== SIM: SP Controller ===');
-        [ runningPeak, exitFlag, fcUsed, ~, featVecSp] = ...
+        [ runningPeak, exitFlag, fcUsed, ~, featVecSp, ~] = ...
             mpcController(cfg, [], godCastTest, testDemandData, ...
             demandDelays, battery, runControl);
 

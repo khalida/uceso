@@ -20,7 +20,7 @@ demandDataTrainOnly = demandDataTrain((max(initIdxs)+1):end);
 %% Create the godCast (perfect foresight forecast) for training data
 demandGodCast = createGodCast(demandDataTrainOnly, cfg.sim.horizon);
 nTrainIdxs = size(demandGodCast, 1);
-demandDataTrainOnly = demandDataTrainOnly(1:nTrainIdxs);
+% demandDataTrainOnly = demandDataTrainOnly(1:nTrainIdxs);
 
 %% Set-up parameters for on-line simulation
 meanDemand = mean(demandDataTrainOnly);
@@ -28,13 +28,18 @@ battery = Battery(cfg, meanDemand*cfg.sim.batteryCapacityRatio*...
     cfg.sim.stepsPerDay);
 
 %% Simulate Model to create training examples
-[ featVecs, respVecs] = mpcGenerateForecastFreeExamples(cfg, ...
-    demandGodCast, demandDataTrainOnly, demandDelays, battery);
+runControl.godCast = true;
+runControl.modelCast = false;
+runControl.naivePeriodic = false;
+runControl.setPoint = false;
 
-allFeatVecs = zeros(size(featVecs, 1), length(demandDataTrainOnly)*...
+[ ~, ~, ~, respVecs, featVecs, ~] = mpcController(cfg, [], ...
+    demandGodCast, demandDataTrainOnly, demandDelays, battery, runControl);
+
+allFeatVecs = zeros(size(featVecs, 1), size(featVecs, 2)*...
     (cfg.fc.nTrainShuffles + 1));
 
-allRespVecs = zeros(size(respVecs, 1), length(demandDataTrainOnly)*...
+allRespVecs = zeros(size(respVecs, 1), size(respVecs, 2)*...
     (cfg.fc.nTrainShuffles + 1));
 
 allFeatVecs(:, 1:nTrainIdxs) = featVecs;
@@ -61,13 +66,14 @@ for eachShuffle = 1:cfg.fc.nTrainShuffles
     demandDelays = newDemandDataTrain(initIdxs);
     demandDataTrainOnly = newDemandDataTrain((max(initIdxs)+1):end);
     demandGodCast = createGodCast(demandDataTrainOnly, cfg.sim.horizon);
-    demandDataTrainOnly = demandDataTrainOnly(1:nTrainIdxs);
+    % demandDataTrainOnly = demandDataTrainOnly(1:nTrainIdxs);
     if nTrainIdxs ~= size(demandGodCast, 1);
         error('Gotc inconsistent No. of training intervals from godCast');
     end
     
-    [ featVecs, respVecs] = mpcGenerateForecastFreeExamples(cfg, ...
-        demandGodCast, demandDataTrainOnly, demandDelays, battery);
+    [ ~, ~, ~, respVecs, featVecs, ~] = mpcController(cfg, [],...
+        demandGodCast, demandDataTrainOnly, demandDelays, battery,...
+        runControl);
     
     allFeatVecs(:, offset + (1:nTrainIdxs)) = featVecs;
     allRespVecs(:, offset + (1:nTrainIdxs)) = respVecs;

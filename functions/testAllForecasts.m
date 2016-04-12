@@ -44,9 +44,8 @@ parfor instance = 1:cfg.sim.nInstances
     runControl = []; 
     
     %% Battery properties
-    battery = Battery(cfg, ...
-        meanKWhs(instance)*cfg.sim.batteryCapacityRatio*...
-        cfg.sim.stepsPerDay);
+    battery = Battery(cfg, meanKWhs(instance)*...
+        cfg.sim.batteryCapacityRatio*cfg.sim.stepsPerDay);
     
     % Separate data into that used for delays, and actual testing
     delayIdxs = 1:cfg.fc.nLags;
@@ -67,11 +66,16 @@ parfor instance = 1:cfg.sim.nInstances
         
         if strcmp(thisMethodString, 'IMFC')
             
+            runControl.naivePeriodic = false;
+            runControl.godCast = false;
+            runControl.setPoint = false;
+            runControl.forecastFree = true;
+            
             %% Forecast Free Controller
-            [ runningPeak, ~, featureVectorsFF{instance}, ~] = ...
-                mpcControllerForecastFree(cfg, ...
-                trainedModels{instance, methodType}, demandDataTest, ...
-                demandDelays, battery);
+            [ runningPeak, ~, ~, ~, featureVectorsFF{instance}, ~] = ...
+                mpcController(cfg, trainedModels{instance, methodType},...
+                godCast, demandDataTest, demandDelays, battery, ...
+                runControl);
             
         else
             
@@ -81,6 +85,7 @@ parfor instance = 1:cfg.sim.nInstances
             runControl.naivePeriodic = strcmp(thisMethodString, 'NPFC');
             runControl.godCast = strcmp(thisMethodString, 'PFFC');           
             runControl.setPoint = strcmp(thisMethodString, 'SP');
+            runControl.forecastFree = false;
             
             % If method is set-point then show it current demand
             if(runControl.setPoint)
@@ -88,7 +93,7 @@ parfor instance = 1:cfg.sim.nInstances
             end
             
             [runningPeak, exitFlag, forecastUsed, ~,...
-                featureVectors{instance}] = mpcController(cfg, ...
+                featureVectors{instance}, ~] = mpcController(cfg, ...
                 trainedModels{instance, methodType}, godCast,...
                 demandDataTest, demandDelays, battery, runControl);
         end

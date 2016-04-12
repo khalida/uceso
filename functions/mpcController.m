@@ -1,17 +1,17 @@
-function [ runningPeak, exitFlag, forecastUsed, respVecs, featVecs ] = ...
-    mpcController(cfg, trainedModel, godCast, demand, demandDelays, ...
-    battery, runControl)
+function [ runningPeak, exitFlag, forecastUsed, respVecs, featVecs, ...
+    b0_raw ] = mpcController(cfg, trainedModel, godCast, demand, ...
+    demandDelays, battery, runControl)
 
 % mpcController: Simulate time series behaviour of MPC controller with a
-% given forecast model
+% given forecast model (or FF controller).
 
 %% INPUTS:
 % cfg:          Structure with all the running parameters
-% trainedModel: Trained forecast model
+% trainedModel: Trained forecast (or FF controller) model
 % godCast:      Matrix of perfect foresight forecasts [nIdxs x horizon]
 % demand:       Vector of demand values [nIdxs x 1]
 % demandDelays: Vector of previous demand  values [nLags x 1]
-% battery:      Structure of battery properties
+% battery:      Battery object
 % runControl:   Structure with speicific running options
 
 %% OUTPUTS:
@@ -20,33 +20,19 @@ function [ runningPeak, exitFlag, forecastUsed, respVecs, featVecs ] = ...
 % forecastUsed: Matrix of forecasts used [horizon x nIdxs]
 % respVecs:     Matrix of possible response vectors [nResp x nIdxs]
 % featVecs:     Matrix of possible feature vectors [nFeat x nIdxs]
-
-% Select forecast function handle
-switch cfg.fc.modelType
-    
-    case 'FFNN'
-        forecastHandle = @forecastFfnn;
-        
-    case 'RF'
-        forecastHandle = @forecastRandomForest;
-        
-    otherwise
-        error('Selected cfg.fc.modelType not implemented');
-end
+% b0_raw:       Unconstrained charge decisions from model [nIdxs x 1]
 
 
 %% Initializations
 battery.reset();
+nIdxs = size(godCast, 1);
+daysPassed = 0;
 
 if cfg.opt.resetPeakToMean
     peakSoFar = mean(demandDelays);
 else
     peakSoFar = 0;
 end
-
-daysPassed = 0;
-nIdxs = size(godCast, 1);
-
 
 %% Pre-Allocations
 runningPeak = zeros(nIdxs, 1);
@@ -81,13 +67,29 @@ for idx = 1:nIdxs;
         forecast = godCast(idx, :)';
         
     elseif runControl.naivePeriodic
-        forecast = demandDelays((end - cfg.sim.horizon + 1):end);
+        forecast = demandDelays(1:cfg.sim.horizon);
         
     elseif runControl.setPoint
         forecast = ones(cfg.sim.horizon, 1).*demandNow;
         
+    elseif isfield(runControl, 'forecastFree') && runControl.forecastFree
+        % No need for a forecast
+        forecast = zeros(cfg.sim.horizon, 1);
     else
         % Produce forecast from input model
+        
+        % Select forecast function handle
+        switch cfg.fc.modelType
+            case 'FFNN'
+                forecastHandle = @forecastFfnn;
+                
+            case 'RF'
+                forecastHandle = @forecastRandomForest;
+                
+            otherwise
+                error('Selected cfg.fc.modelType not implemented');
+        end
+        
         forecast = forecastHandle(cfg, trainedModel, demandDelays);
     end
     
@@ -101,34 +103,63 @@ for idx = 1:nIdxs;
     forecastUsed(:, idx) = forecast;
     
     if cfg.fc.knowFutureFF
-        % featVec = [forecasts; stateOfCharge; (demandNow); peakSoFar];
-        %if runControl.godCast
-            if cfg.opt.knowDemandNow
-                featVecs(:, idx) = ...
-                    [forecast; battery.SoC; demandNow; peakSoFar];
-            else
-                featVecs(:, idx) = ...
-                    [forecast; battery.SoC; peakSoFar];
-            end
-        %end
+        % featVec = [futureDemand; stateOfCharge; (demandNow); peakSoFar];
+        if cfg.opt.knowDemandNow
+            featVecs(:, idx) = [demand(idx:(idx + cfg.sim.horizon - 1));...
+                battery.SoC; demandNow; peakSoFar];
+        else
+            featVecs(:, idx) = [demand(idx:(idx + cfg.sim.horizon - 1));...
+                battery.SoC; peakSoFar];
+        end
     else
-        % featVec = [demandDelays; stateOfCharge; (demandNows); peakSoFar];
-        %if runControl.godCast
-            if cfg.opt.knowDemandNow
-                featVecs(:, idx) = ...
-                    [demandDelays; battery.SoC; demandNow; peakSoFar];
-            else
-                featVecs(:, idx) = ...
-                    [demandDelays; battery.SoC; peakSoFar];
-            end
-        %end
+        % featVec = [demandDelays; stateOfCharge; (demandNow); peakSoFar];
+        if cfg.opt.knowDemandNow
+            featVecs(:, idx) = [demandDelays; battery.SoC; demandNow;...
+                peakSoFar];
+        else
+            featVecs(:, idx) = [demandDelays; battery.SoC; peakSoFar];
+        end
     end
     
     cfg.opt.setPoint = runControl.setPoint;
     
-    [energyToBattery, exitFlag(idx)] = controllerOptimizer(cfg, ...
-        forecast, demandNow, battery, peakSoFar);
+    if isfield(runControl, 'forecastFree') && runControl.forecastFree
+        %% FORECAST FREE CONTROLLER:
+        [energyToBatteryNow, peakForecastEnergy, b0_raw] = ...
+            forecastFreeControl(cfg, featVecs(:, idx), battery, ...
+            trainedModel, peakSoFar);
+        
+        exitFlag(idx) = 1;
+        
+        energyToBattery = ones(cfg.sim.horizon, 1).*energyToBatteryNow;
+    else
+        %% STD. FORECAST-BASED OR SP CONTROLLER:
+        [energyToBattery, exitFlag(idx)] = controllerOptimizer(cfg, ...
+            forecast, demandNow, battery, peakSoFar);
+        
+        peakForecastEnergy = max([energyToBattery(:) + forecast(:); ...
+            peakSoFar]);
+        
+        energyToBatteryNow = energyToBattery(1);
+        b0_raw = energyToBatteryNow;
+    end
     
+    
+    % Implement set point recourse, if selected
+    if cfg.opt.setPointRecourse
+        
+        % Check if opt action combined with actual demand exceeds expected
+        % peak, & rectify if so:
+        if (demandNow + energyToBatteryNow) > peakForecastEnergy
+            energyToBatteryNow = peakForecastEnergy - demandNow;
+        end
+        
+        % SP recourse has been applied; need to re-apply battery
+        % constraints
+        energyToBatteryNow = battery.limitCharge(energyToBatteryNow);
+    end
+    
+    %% Plot first horizon to assis with debugging
     if ~cfg.opt.suppressOutput && idx == 1
         figure();
         plot([forecast, godCast(idx, :)', ...
@@ -143,30 +174,9 @@ for idx = 1:nIdxs;
             'Expected Demand from Grid [kWh/interval]');
     end
     
-    % Implement set point recourse, if selected
-    if cfg.opt.setPointRecourse
-        
-        % Peak power based on current forecast and decisions
-        peakForecastEnergy = max([energyToBattery(:) + forecast(:); peakSoFar]);
-        
-        % Check if opt action combined with actual demand exceeds thi;
-        % rectify charging action if so:
-        if (demandNow + energyToBattery(1)) > peakForecastEnergy
-            energyToBatteryNow = peakForecastEnergy - demandNow;
-        else
-            energyToBatteryNow = energyToBattery(1);
-        end
-        
-        % SP recourse has been applied; need to re-apply battery
-        % constraints
-        energyToBatteryNow = battery.limitCharge(energyToBatteryNow);
-        
-    else
-        energyToBatteryNow = energyToBattery(1);
-    end
     
-    % Apply control action to plant (subject to rate and state of charnge
-    % constraints)
+    %% Apply control action to plant
+    % (subject to rate and state of charnge constraints)
     battery.chargeBy(energyToBatteryNow);
     respVecs(1, idx) = energyToBatteryNow;
     
