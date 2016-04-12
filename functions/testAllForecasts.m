@@ -44,11 +44,13 @@ parfor instance = 1:cfg.sim.nInstances
     runControl = []; 
     
     %% Battery properties
-    battery = makeBattery(meanKWhs(instance), cfg);
+    battery = Battery(cfg, ...
+        meanKWhs(instance)*cfg.sim.batteryCapacityRatio*...
+        cfg.sim.stepsPerDay);
     
     % Separate data into that used for delays, and actual testing
     delayIdxs = 1:cfg.fc.nLags;
-    demandDelays = demandData(delayIdxs, instance);
+    demandDelays = demandData(delayIdxs, instance); %#ok<PFBNS>
     demandDataTest = demandData((max(delayIdxs)+1):end, instance);
     peakLocalPower = max(demandDataTest);
     

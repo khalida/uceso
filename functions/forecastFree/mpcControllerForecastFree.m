@@ -19,7 +19,7 @@ function [ runningPeak, respVecs, featVecs, b0_raw ] = ...
 
 
 %% Initializations
-stateOfCharge = 0.5*battery.capacity;
+battery.reset();
 nIdxs = length(demand);
 
 if cfg.opt.resetPeakToMean
@@ -61,18 +61,18 @@ for idx = 1:lastIdx
         % featVec = [futureDemand; stateOfCharge; (demandNow); peakSoFar];
         if cfg.opt.knowDemandNow
             featVec = [demand(idx:(idx + cfg.sim.horizon - 1));...
-                stateOfCharge; demandNow; peakSoFar];
+                battery.SoC; demandNow; peakSoFar];
         else
             featVec = [demand(idx:(idx + cfg.sim.horizon - 1));...
-                stateOfCharge; peakSoFar];
+                battery.SoC; peakSoFar];
         end
     else
         % featVec = [demandDelays; stateOfCharge; (demandNow); peakSoFars];
         if cfg.opt.knowDemandNow
-            featVec = [demandDelays; stateOfCharge; demandNow;...
+            featVec = [demandDelays; battery.SoC; demandNow;...
                 peakSoFar];
         else
-            featVec = [demandDelays; stateOfCharge; peakSoFar];
+            featVec = [demandDelays; battery.SoC; peakSoFar];
         end
     end
     
@@ -121,14 +121,10 @@ for idx = 1:lastIdx
             
     end
     
-    % Apply decision, subject to rate and state of charge constraints
-    energyToBatteryNow = max([energyToBatteryNow, ...
-        -stateOfCharge, -demandNow, -battery.maximumChargeEnergy]);
-    
-    energyToBatteryNow = min([energyToBatteryNow,...
-        (battery.capacity-stateOfCharge), battery.maximumChargeEnergy]);
-    
-    stateOfCharge = stateOfCharge + energyToBatteryNow;
+    % Set constraints on battery charging energy (FF controller has not
+    % feas. guarantee)
+    energyToBatteryNow = battery.limitCharge(energyToBatteryNow);
+    battery.chargeBy(energyToBatteryNow);
     respVecs(1, idx) = energyToBatteryNow;
     
     if cfg.opt.setPointRecourse

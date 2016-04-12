@@ -3,7 +3,7 @@
 
 %% Exact controller has been implemented in controllerOptimizer:
 %[energyToBattery, exitFlag] = controllerOptimizer(cfg, ...
-% forecast, stateOfCharge, demandNow, battery, peakSoFar)
+            % forecast, demandNow, battery, peakSoFar)
 
 % And it requires the following INPUTS:
 % cfg:              Structure of running options
@@ -60,8 +60,9 @@ for tsTrIdx = 1:length(tsTrainLengths)
         avgLoad = mean(timeSeriesData);
         
         % Declare battery properties
-        battery = makeBattery(avgLoad, cfg);        
-
+        battery = Battery(cfg, avgLoad*cfg.sim.batteryCapacityRatio*...
+            cfg.sim.stepsPerDay);
+        
         trainDemandSeries = timeSeriesData(1:tsTrainLength);
         testDemandSeries = timeSeriesData((length(trainDemandSeries)...
             +1):end);

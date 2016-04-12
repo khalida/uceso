@@ -36,7 +36,7 @@ end
 
 
 %% Initializations
-stateOfCharge = 0.5*battery.capacity;
+battery.reset();
 
 if cfg.opt.resetPeakToMean
     peakSoFar = mean(demandDelays);
@@ -105,10 +105,10 @@ for idx = 1:nIdxs;
         %if runControl.godCast
             if cfg.opt.knowDemandNow
                 featVecs(:, idx) = ...
-                    [forecast; stateOfCharge; demandNow; peakSoFar];
+                    [forecast; battery.SoC; demandNow; peakSoFar];
             else
                 featVecs(:, idx) = ...
-                    [forecast; stateOfCharge; peakSoFar];
+                    [forecast; battery.SoC; peakSoFar];
             end
         %end
     else
@@ -116,10 +116,10 @@ for idx = 1:nIdxs;
         %if runControl.godCast
             if cfg.opt.knowDemandNow
                 featVecs(:, idx) = ...
-                    [demandDelays; stateOfCharge; demandNow; peakSoFar];
+                    [demandDelays; battery.SoC; demandNow; peakSoFar];
             else
                 featVecs(:, idx) = ...
-                    [demandDelays; stateOfCharge; peakSoFar];
+                    [demandDelays; battery.SoC; peakSoFar];
             end
         %end
     end
@@ -127,12 +127,12 @@ for idx = 1:nIdxs;
     cfg.opt.setPoint = runControl.setPoint;
     
     [energyToBattery, exitFlag(idx)] = controllerOptimizer(cfg, ...
-        forecast, stateOfCharge, demandNow, battery, peakSoFar);
+        forecast, demandNow, battery, peakSoFar);
     
     if ~cfg.opt.suppressOutput && idx == 1
         figure();
         plot([forecast, godCast(idx, :)', ...
-            cumsum(energyToBattery(:)) + stateOfCharge, ...
+            cumsum(energyToBattery(:)) + battery.SoC, ...
             energyToBattery(:), forecast + energyToBattery(:)]);
         
         hline = refline(0, peakSoFar); hline.LineWidth = 2;
@@ -157,28 +157,17 @@ for idx = 1:nIdxs;
             energyToBatteryNow = energyToBattery(1);
         end
         
+        % SP recourse has been applied; need to re-apply battery
+        % constraints
+        energyToBatteryNow = battery.limitCharge(energyToBatteryNow);
+        
     else
         energyToBatteryNow = energyToBattery(1);
     end
     
     % Apply control action to plant (subject to rate and state of charnge
     % constraints)
-    origValue = energyToBatteryNow;
-    
-    energyToBatteryNow = max([energyToBatteryNow, -stateOfCharge,...
-        -demandNow, -battery.maximumChargeEnergy]);
-    
-    energyToBatteryNow = min([energyToBatteryNow, ...
-        (battery.capacity - stateOfCharge), battery.maximumChargeEnergy]);
-    
-    % Error-checking for godCast case
-    if abs(energyToBatteryNow - origValue) > 1e-6 && runControl.godCast
-        error(['Simulation constraint active; something wrong with', ...
-            'optimization constraint?']);
-    end
-    
-    stateOfCharge = stateOfCharge + energyToBatteryNow;
-    
+    battery.chargeBy(energyToBatteryNow);
     respVecs(1, idx) = energyToBatteryNow;
     
     if cfg.opt.setPointRecourse

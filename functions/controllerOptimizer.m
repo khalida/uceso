@@ -1,5 +1,5 @@
 function [energyToBattery, exitFlag] = controllerOptimizer(cfg, ...
-    forecast, stateOfCharge, demandNow, battery, peakSoFar)
+    forecast, demandNow, battery, peakSoFar)
 
 % controllerOptimizer: Optimise the control given a forecast of demand
 %                       using linear program
@@ -7,7 +7,6 @@ function [energyToBattery, exitFlag] = controllerOptimizer(cfg, ...
 %% INPUTS:
 % cfg:              Structure of running options
 % forecast:         Demand forecast for next k steps [kWh]
-% stateOfCharge:    [kWh] in battery at start of interval
 % demandNow:        Actual demand for current interval [kWh]
 % battery:          Structure containing information about the batt [kWh]
 % peakSoFar:        Running peak demand in billing period [kWh]
@@ -39,12 +38,14 @@ if cfg.opt.setPoint
     if forecast(1) > peakSoFar
         % Discharge sufficiently to prevent new peak
         energyToBattery(1) = max(-(forecast(1) - peakSoFar),...
-            -battery.maximumChargeEnergy);
+            -battery.maxChargeEnergy);
     else
         % Charge without creating new peak
         energyToBattery(1) = min(peakSoFar - forecast(1),...
-            battery.maximumChargeEnergy);
+            battery.maxChargeEnergy);
     end
+    % Finally constrain this decision to be feasible:
+    energyToBattery(1) = battery.limitCharge(energyToBattery(1));
     exitFlag = 1;
     
 else
@@ -89,12 +90,12 @@ else
     % Express these as inequality A*x <= b
     % NB: we have zeros for our k+1, k+2 variables:
     A = [tril(ones(horizon, horizon)), zeros(horizon, 2)];
-    b = repmat(battery.capacity - stateOfCharge, [horizon, 1]);
+    b = repmat(battery.capacity - battery.SoC, [horizon, 1]);
     
     % 2. Similar constraints ensure stateOfCharge doesn't fall below zero
     % Add these to contraints above:
     A = [A; [tril(-1*ones(horizon,horizon)), zeros(horizon, 2)]];
-    b = [b; repmat(stateOfCharge, [horizon, 1])];
+    b = [b; repmat(battery.SoC, [horizon, 1])];
     
     % 3. Constrain k+1 variable to be >= forecast power drawn from grid
     % exceedance determined by the 1..k variables:
@@ -121,17 +122,17 @@ else
     
     % 1. Each of x_i (powerToBattery) must be <= maximumChargeEnergy
     %       leave x_(k+1, k+2) unbounded above
-    ub = [ones([horizon 1]).*battery.maximumChargeEnergy; Inf; Inf];
+    ub = [ones([horizon 1]).*battery.maxChargeEnergy; Inf; Inf];
     
     % 2. Power withdrawn from battery is bounded by
     %       -maximumChargeEnergy and forecast demand (no export allowed)
     %       bound x_(k+1) below at 0; primary object is to not exceed peak
     %       Leave x_(k_2) unbounded below if we want to reward margin
     if cfg.opt.rewardMargin
-        lb = [max(ones([horizon 1]).*-battery.maximumChargeEnergy, -forecast);...
+        lb = [max(ones([horizon 1]).*-battery.maxChargeEnergy, -forecast);...
             0; -Inf];
     else
-        lb = [max(ones([horizon 1]).*-battery.maximumChargeEnergy, -forecast);...
+        lb = [max(ones([horizon 1]).*-battery.maxChargeEnergy, -forecast);...
             0; 0];
     end
     

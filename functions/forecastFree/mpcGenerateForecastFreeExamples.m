@@ -18,7 +18,7 @@ function [ featVecs, respVecs ] = mpcGenerateForecastFreeExamples(cfg, ...
 
 
 %% Initializations
-stateOfCharge = 0.5*battery.capacity;
+battery.reset();
 nIdxs = size(demandGodCast, 1);
 % kW -> kWh/interval:
 
@@ -60,15 +60,15 @@ for idx = 1:nIdxs
     
     % Find optimal battery charging action
     [energyToBattery, ~] = controllerOptimizer(cfg, forecast, ...
-        stateOfCharge, demandNow, battery, peakSoFar);
+        demandNow, battery, peakSoFar);
     
     % Save feature and response vectors:
     % featVec = [nLags prev demand; stateOfCharge; (demandNow); peakSoFar];
     if cfg.opt.knowDemandNow
-        featVecs(:, idx) = [demandDelays; stateOfCharge; ...
+        featVecs(:, idx) = [demandDelays; battery.SoC; ...
             demandNow; peakSoFar];
     else
-        featVecs(:, idx) = [demandDelays; stateOfCharge; peakSoFar];
+        featVecs(:, idx) = [demandDelays; battery.SoC; peakSoFar];
     end
     
     % Save data for set-point recourse if required
@@ -82,20 +82,7 @@ for idx = 1:nIdxs
     respVecs(1, idx) =  energyToBatteryNow;
     
     % Apply control action to plant, subject to rate and state of charge
-    % constraints (NB: this should be done in a separate simulation model)
-    energyToBatteryNow = max([energyToBatteryNow, -stateOfCharge, ...
-        -demandNow, -battery.maximumChargeEnergy]);
-    
-    energyToBatteryNow = min([energyToBatteryNow, ...
-        (battery.capacity-stateOfCharge), battery.maximumChargeEnergy]);
-    
-    stateOfCharge = stateOfCharge + energyToBatteryNow;
-    if stateOfCharge > battery.capacity + 1e-6 ||...
-            stateOfCharge < -1e-6
-        error(['Battery state of charge out of range: ' ...
-            num2str(stateOfCharge) ', capacity: ' ...
-            num2str(battery.capacity)]);
-    end
+    battery.chargeBy(energyToBatteryNow);
     
     % Update current peak energy reset if we are at start of
     % billing period
