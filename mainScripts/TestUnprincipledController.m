@@ -28,10 +28,10 @@ cfg = Config(pwd);
 %% Declare properties of artificial demand signal
 sglMagnitude = 5;
 noiseMagnitudes = [0, 2.5, 5, 7.5, 10];
-tsTrainLengths = [2]; %#ok<NBRAK>
-tsTestLength = 2*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+tsTrainLengths = [32]; %#ok<NBRAK>
+tsTestLength = 50*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
-% Initialize results vectors
+%% Initialize results vectors
 prr_UC = zeros(length(tsTrainLengths), length(noiseMagnitudes));
 prr_exactNP = prr_UC;
 prr_exactMC = prr_UC;
@@ -46,6 +46,8 @@ for tsTrIdx = 1:length(tsTrainLengths)
     parfor noiseIdx = 1:length(noiseMagnitudes)
         
         runControl = [];        % avoid parfor error
+        ax = cell(5,1);
+        tsFig = [];
         
         noiseMagnitude = noiseMagnitudes(noiseIdx);
         
@@ -118,10 +120,12 @@ for tsTrIdx = 1:length(tsTrainLengths)
         %(this just tests how well an input/output mapping replicates the
         %optimiser)
         if plotEachTrainLength
-            estimatedRespVecsVal = unprincipledController(featVecsVal);
             figure();
+            estimatedRespVecsVal = unprincipledController(featVecsVal);
             plotregression(respVecsVal, estimatedRespVecsVal);
             title('Train Unprincipled Controller i/o mapping perf.');
+            saveas(gcf, [cfg.sav.resultsDir filesep 'reg_nseIdx'...
+                num2str(noiseIdx) 'tsIdx' num2str(tsTrIdx) '.fig']);
         end
         
         
@@ -155,11 +159,12 @@ for tsTrIdx = 1:length(tsTrainLengths)
             cfg.sim.horizon*cfg.sim.billingPeriodDays);
         
         if plotEachTrainLength
-            figure();
-            plot([testDemandData(idxsCommon), runningPeak(idxsCommon)])
-            title(['Exact controller with perfect foresight, ' ...
-                num2str(nObsTrain) ' data points']);
-            refline(0, avgLoad);
+            tsFig = figure();
+            plotIdx = 1;
+            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, ...
+                testDemandSeries(idxsCommon), runningPeak(idxsCommon), ...
+                avgLoad, featVectorGcTest(cfg.fc.nLags+1,idxsCommon), ...
+                battery, 'Exact ctrl, PF fcast', nObsTrain);
         end
         
         %% 5b) Exact controller with modelCast
@@ -182,11 +187,11 @@ for tsTrIdx = 1:length(tsTrainLengths)
             cfg.sim.horizon*cfg.sim.billingPeriodDays);
         
         if plotEachTrainLength
-            figure();
-            plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)])
-            title(['Exact controller with Model Cast, ' ...
-                num2str(nObsTrain) ' data points']);
-            refline(0, avgLoad);
+            plotIdx = 2;
+            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
+                runningPeak(idxsCommon), avgLoad, ...
+                featVectorMc(cfg.fc.nLags+1,idxsCommon), battery,...
+                'Exact ctrl, Mdl fcast', nObsTrain);
         end
         
         %% 5c) Exact controller with NP forecast
@@ -206,11 +211,11 @@ for tsTrIdx = 1:length(tsTrainLengths)
             cfg.sim.horizon*cfg.sim.billingPeriodDays);
         
         if plotEachTrainLength
-            figure();
-            plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)])
-            title(['Exact controller with NP forecast, ' ...
-                num2str(nObsTrain) ' data points']);
-            refline(0, avgLoad);
+            plotIdx = 3;
+            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
+                runningPeak(idxsCommon), avgLoad, ...
+                featVecNp(cfg.fc.nLags+1,idxsCommon), battery,...
+                'Exact ctrl, NP fcast', nObsTrain);
         end
         
         %% 5d) Unprincipled controller
@@ -231,11 +236,11 @@ for tsTrIdx = 1:length(tsTrainLengths)
             cfg.sim.horizon*cfg.sim.billingPeriodDays);
         
         if plotEachTrainLength
-            figure();
-            plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)])
-            title(['Unprinc. Ctlr Peak Import VS Local Demand, ' ...
-                num2str(nObsTrain) ' data points']);
-            refline(0, avgLoad);
+            plotIdx = 4;
+            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
+                runningPeak(idxsCommon), avgLoad, ...
+                featVecUp(cfg.fc.nLags+1,idxsCommon), battery,...
+                'Unprinc ctrl, NP fcast', nObsTrain);
         end
         
         %% 5e) Set-Point Controller
@@ -245,7 +250,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.modelCast = false;
         
         disp('=== SIM: SP Controller ===');
-        [ runningPeak, exitFlag, fcUsed, ~, ~ ] = ...
+        [ runningPeak, exitFlag, fcUsed, ~, featVecSp] = ...
             mpcController(cfg, [], godCastTest, testDemandData, ...
             demandDelays, battery, runControl);
 
@@ -255,11 +260,17 @@ for tsTrIdx = 1:length(tsTrainLengths)
             cfg.sim.horizon*cfg.sim.billingPeriodDays);
         
         if plotEachTrainLength
-            figure();
-            plot([testDemandSeries(idxsCommon), runningPeak(idxsCommon)])
-            title(['Set-Point Controller (can see 1-step into future, ' ...
-                num2str(nObsTrain) ' data points']);
-            refline(0, avgLoad);
+            plotIdx = 5;
+            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
+                runningPeak(idxsCommon), avgLoad, ...
+                featVecUp(cfg.fc.nLags+1,idxsCommon), battery,...
+                'SP ctrl', nObsTrain);
+            
+            % Link x axes for plotting:
+            linkaxes([ax{:}], 'x');
+            
+            saveas(gcf, [cfg.sav.resultsDir filesep 'tSeries_nseIdx'...
+                num2str(noiseIdx) 'tsIdx' num2str(tsTrIdx) '.fig']);
         end
         
         disp(['Completed run with ' num2str(nObsTrain) ' data points']);

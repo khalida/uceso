@@ -102,7 +102,7 @@ for idx = 1:nIdxs;
     
     if cfg.fc.knowFutureFF
         % featVec = [forecasts; stateOfCharge; (demandNow); peakSoFar];
-        if runControl.godCast
+        %if runControl.godCast
             if cfg.opt.knowDemandNow
                 featVecs(:, idx) = ...
                     [forecast; stateOfCharge; demandNow; peakSoFar];
@@ -110,10 +110,10 @@ for idx = 1:nIdxs;
                 featVecs(:, idx) = ...
                     [forecast; stateOfCharge; peakSoFar];
             end
-        end
+        %end
     else
         % featVec = [demandDelays; stateOfCharge; (demandNows); peakSoFar];
-        if runControl.godCast
+        %if runControl.godCast
             if cfg.opt.knowDemandNow
                 featVecs(:, idx) = ...
                     [demandDelays; stateOfCharge; demandNow; peakSoFar];
@@ -121,7 +121,7 @@ for idx = 1:nIdxs;
                 featVecs(:, idx) = ...
                     [demandDelays; stateOfCharge; peakSoFar];
             end
-        end
+        %end
     end
     
     cfg.opt.setPoint = runControl.setPoint;

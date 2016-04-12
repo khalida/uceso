@@ -9,6 +9,7 @@ peakReductionsTrialFlattened = results.peakReductionsTrialFlattened;
 smallestExitFlag = results.smallestExitFlag;
 peakReductions = results.peakReductions;
 lossTestResults = results.lossTestResults;
+noiseSglRatio = results.noiseSglRatio;
 
 nDaysTrain = cfg.fc.nDaysTrain;
 nDaysTest = cfg.sim.nDaysTest;
@@ -164,15 +165,24 @@ print(fig_5, '-dpdf', [cfg.sav.resultsDir filesep ...
     'forecastMseResultsBoxPlot.pdf']);
 
 %% 6) Version of forecasting performance split out by aggregation size:
+% Also include noiseToSignalRatios
 fig_6 = figure();
 nCustomerGroupSizes = length(cfg.sim.nCustomers);
 for customerGroupSize = 1:nCustomerGroupSizes
-    subplot(nCustomerGroupSizes, 1, customerGroupSize);
+    subplot(nCustomerGroupSizes, 2, 2*customerGroupSize-1);
     boxplot(lossTestResults(forecastDrivenIdxs, :, customerGroupSize)',...
         'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
     
-    ylabel('Forecast MSE [kWh^2]')
-    title([num2str(cfg.sim.nCustomers(customerGroupSize)), ' customer(s)']);
+    ylabel('Forecast MSE [kWh^2]');
+    title([num2str(cfg.sim.nCustomers(customerGroupSize)),...
+        ' customer(s)']);
+    
+    subplot(nCustomerGroupSizes, 2, 2*customerGroupSize);
+    boxplot(noiseSglRatio(forecastDrivenIdxs, :, customerGroupSize)',...
+        'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
+    ylabel('Noise to Signal Ratio []');
+    title([num2str(cfg.sim.nCustomers(customerGroupSize)),...
+        ' customer(s)']);
     
     grid on;
 end
