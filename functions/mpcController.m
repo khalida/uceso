@@ -62,21 +62,27 @@ for idx = 1:nIdxs;
     
     if runControl.godCast
         forecast = godCast(idx, :)';
+        titleString = 'godCast';
         
     elseif isfield(runControl, 'modelCast') && runControl.modelCast
         forecast = godCast(idx, :)';
+        titleString = 'modelCast';
         
     elseif runControl.naivePeriodic
         forecast = demandDelays(1:cfg.sim.horizon);
+        titleString = 'NP';
         
     elseif runControl.setPoint
         forecast = ones(cfg.sim.horizon, 1).*demandNow;
+        titleString = 'SP';
         
     elseif isfield(runControl, 'forecastFree') && runControl.forecastFree
         % No need for a forecast
         forecast = zeros(cfg.sim.horizon, 1);
+        titleString = 'FF';
     else
         % Produce forecast from input model
+        titleString = 'MFFC';
         
         % Select forecast function handle
         switch cfg.fc.modelType
@@ -168,10 +174,17 @@ for idx = 1:nIdxs;
         
         hline = refline(0, peakSoFar); hline.LineWidth = 2;
         hline.Color = 'k';
+        
+        hline = refline(0, battery.capacity); hline.LineWidth = 2;
+        hline.Color = 'c';
+        
         grid on;
         legend('Forecast [kWh/interval]', 'GodCast [kWh/interval]', ...
             'SoC [kWh]', 'Energy to Batt [kWh/interval]', ...
-            'Expected Demand from Grid [kWh/interval]');
+            'Expected Demand from Grid [kWh/interval]',...
+            'Peak so Far [kWh/interval', 'Battery Capacity [kWh]');
+        
+        title(['1st horizon, ' titleString]);
     end
     
     
@@ -184,11 +197,16 @@ for idx = 1:nIdxs;
         respVecs(2, idx) = peakForecastEnergy;
     end
     
-    % Update current peak power, reset if we are at start of billing prd
+    % Compute running peak for saving:
+    peakSoFar = max(peakSoFar, demandNow + energyToBatteryNow);
+    runningPeak(idx) = peakSoFar;
+    
+    % Increment No. of days passed, if required
     if mod(idx, cfg.sim.stepsPerDay) == 0
         daysPassed = daysPassed + 1;
     end
     
+    % If we've reached end of billing period, resent the peak tracker
     if daysPassed == cfg.sim.billingPeriodDays
         daysPassed = 0;
         
@@ -197,16 +215,29 @@ for idx = 1:nIdxs;
         else
             peakSoFar = 0;
         end
-    else
-        peakSoFar = max(peakSoFar, demandNow + energyToBatteryNow);
     end
-    
-    % Compute outputs for saving
-    runningPeak(idx) = peakSoFar;
     
     % Shift demandDelays (and add current demand)
     demandDelays = [demandDelays(2:end); demandNow];
 end
+
+%% Plot time-series behavior for debugging
+if ~cfg.opt.suppressOutput
+    figure();
+    plot([godCast(:, 1), cumsum(respVecs(1,:)') + battery.capacity/2, ...
+        respVecs(1,:)', godCast(:, 1) + respVecs(1,:)', runningPeak]);
+    
+    hline = refline(0, battery.capacity); hline.LineWidth = 2;
+    hline.Color = 'c';
+    
+    grid on;
+    legend('Local Demand [kWh/interval]', 'SoC [kWh]',...
+        'Energy to Batt [kWh/interval]', 'Grid Demand [kWh/interval]',...
+        'Running Peak [kWh/interval', 'Battery Capacity [kWh]');
+    
+    title(['All horizons, ' titleString]);
+end
+
 delete(h);
 
 end
