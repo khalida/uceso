@@ -1,4 +1,4 @@
-%% Main Script for IDDFO (Integrated Data-Driven Forecasting &
+%% Main Script for UCESO (Unprincipled Controllers for Energy Storage
 % Optimization).
 
 %% (Tidy up &) Load Configuration options
@@ -13,22 +13,26 @@ LoadFunctions;
 
 %% Load Data
 disp('======= LOADING DATA =======');
-[ demandDataTrain, demandDataTest ] = loadData( cfg );
+[ dataTrain, dataTest ] = loadData( cfg );
 
 
 %% Train Forecasts (& forecast-free controller)
 disp('======= FORECAST TRAINING =======');
-[ trainedModels, trainTime ] = trainAllForecasts(cfg, demandDataTrain);
+[ trainedModels, trainTime ] = trainAllForecasts(cfg, dataTrain);
 
 
 %% Test All Methods:
 disp('======= FORECAST TESTING =======');
-[ results ] = testAllForecasts(cfg, trainedModels, demandDataTest);
+[ results ] = testAllForecasts(cfg, trainedModels, dataTest);
 
 
 %% Plotting:
 disp('======= PLOTTING =======');
-plotAllResults(cfg, results);
+if isequal(cfg.type, 'oso')
+    plotAllResultsDp( cfg, results, dataTrain)
+else
+    plotAllResults(cfg, results);
+end
 
 
 %% Save Results
