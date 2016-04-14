@@ -1,4 +1,4 @@
-function [energyToBatteryNow, peakForecastEnergy, b0_raw] = ...
+function [decision, peakForecastEnergy, b0_raw] = ...
     forecastFreeControl(cfg, featVec, battery, model, peakSoFar)
 % forecastFreeControl: Apply forecast-free control model:
 
@@ -18,7 +18,7 @@ switch cfg.fc.modelType
         respVec = model.decisionModel.predict(featVec');
         
         % Apply set point recourse if selected
-        if cfg.opt.setPointRecourse
+        if cfg.opt.setPointRecourse && ~isequal(cfg.type, 'oso')
             peakEnergy = model.peakEnergy.predict(featVec');
         end
         
@@ -26,7 +26,7 @@ switch cfg.fc.modelType
         respVec = model( featVec );
         
         % Apply set point recourse if selected
-        if cfg.opt.setPointRecourse
+        if cfg.opt.setPointRecourse && ~isequal(cfg.type, 'oso')
             peakEnergy = respVec(2);
         end
         
@@ -35,11 +35,21 @@ switch cfg.fc.modelType
         
 end
 
-energyToBatteryNow = respVec(1);
-b0_raw = energyToBatteryNow;
-peakForecastEnergy = max([peakEnergy; peakSoFar]);
+decision = respVec(1);
+b0_raw = decision;
+if cfg.opt.setPointRecourse && ~isequal(cfg.type, 'oso')
+    peakForecastEnergy = max([peakEnergy; peakSoFar]);
+else
+    peakForecastEnergy = [];
+end
 
 %% Apply feasibility constraints on charge decision
-energyToBatteryNow = battery.limitCharge(energyToBatteryNow);
+if isequal(cfg.type, 'oso')
+    % NB: for oso; decision is bestDischargeStep
+    decision = -battery.limitChargeStep(-decision);
+    decision = fix(decision);
+else
+    decision = battery.limitCharge(decision);
+end
 
 end

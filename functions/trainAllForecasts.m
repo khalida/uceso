@@ -1,15 +1,15 @@
-function [ trainedModels, trainTime ] = ...
-    trainAllForecasts(cfg, demandDataTrain)
+function [ trainedModels, trainTime ] = trainAllForecasts(cfg, dataTrain)
 
 % trainAllForecasts: Train forecast models and forecast-free controller.
 %   Run through each instance and each method and output trained models.
 
 %% INPUTS:
 % cfg:              Structure containing all of the running options
-% demandDataTrain:  Matrix with demand data [nIntervalsTrain x nInstances]
+% dataTrain:        Structure with demand (and PV) data [nIntervalsTrain x nInstances]
 
 %% OUTPUTS:
 % trainedModels:    Trained forecast and forecast-free controller models
+% trainTime:        Time taken for training
 
 tic;
 
@@ -39,10 +39,10 @@ delete(poolobj);
 
 parfor instance = 1:cfg.sim.nInstances
 % for instance = 1:cfg.sim.nInstances
-
+    
     tempModels = cell(1, cfg.sim.nMethods);     % prevent parfor issues
     tempTimeTaken = zeros(1, cfg.sim.nMethods);
-
+    
     for methodTypeIdx = 1:cfg.sim.nMethods
         
         switch cfg.sim.methodList{methodTypeIdx} %#ok<*PFBNS>
@@ -51,13 +51,20 @@ parfor instance = 1:cfg.sim.nInstances
             case 'IMFC'
                 tempTic = tic;
                 
-                tempModels{1, methodTypeIdx} = ...
-                    trainForecastFreeController(cfg, ...
-                    demandDataTrain(:, instance));
+                if isequal(cfg.type, 'oso')
+                    tempModels{1, methodTypeIdx} = ...
+                        trainForecastFreeController(cfg, ...
+                        dataTrain.demand(:, instance), ...
+                        dataTrain.pv(:, instance));
+                else
+                    tempModels{1, methodTypeIdx} = ...
+                        trainForecastFreeController(cfg, ...
+                        dataTrain.demand(:, instance));
+                end
                 
                 tempTimeTaken(1, methodTypeIdx) = toc(tempTic);
                 
-            % Skip if method doesn't need training
+                % Skip if method doesn't need training
             case 'NPFC'
                 continue;
                 
@@ -67,12 +74,20 @@ parfor instance = 1:cfg.sim.nInstances
             case 'SP'
                 continue;
                 
-            % Train forecast model
+            case 'NB'
+                continue;
+                
+                % Train forecast model
             case 'MFFC'
                 tempTic = tic;
                 
-                tempModels{1, methodTypeIdx} = trainHandle(...
-                    cfg, demandDataTrain(:, instance));
+                tempModels{1, methodTypeIdx}.demand = trainHandle(...
+                    cfg, dataTrain.demand(:, instance));
+                
+                if isequal(cfg.type, 'oso')
+                    tempModels{1, methodTypeIdx}.pv = trainHandle(...
+                        cfg, dataTrain.pv(:, instance));
+                end
                 
                 tempTimeTaken(1, methodTypeIdx) = toc(tempTic);
                 

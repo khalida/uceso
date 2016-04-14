@@ -1,7 +1,7 @@
 %% Script to test the performance of an Unprincipled Controller, when
 % Trained using output from a principled controller (in our application)
 
-%% Exact controller has been implemented in controllerOptimizer:
+%% minMaxDemand controller has been implemented in controllerOptimizer:
 %[energyToBattery, exitFlag] = controllerOptimizer(cfg, ...
             % forecast, demandNow, battery, peakSoFar)
 
@@ -13,6 +13,18 @@
 % battery:          Structure containing information about the batt [kWh]
 % peakSoFar:        Running peak demand in billing period [kWh]
 
+
+%% oso controller implemented in controllerDp.m
+% [bestChargeStep, bestCTG] = controllerDp(cfg, demForecast, pvForecast, ...
+            % battery, hourNow);
+            
+% cfg:              Structure of running options
+% dem|pv|forecast:  Demand and PV forecast for next cfg.sim.horizon steps [kWh]
+% SoC_initstateOfCharge:    [kWh] in battery at start of interval
+% battery:          Object representing the battery
+% hourNow:          Time of day
+
+
 %% 0) Tidy up & Load functions
 clearvars; close all; clc;
 rng(42);
@@ -23,13 +35,14 @@ plotEachTrainLength = true;  %#ok<*UNRCH>
 %% 1) Running Options
 % Load from Config():
 cfg = Config(pwd);
+type = 'oso';      % {'oso', 'minMaxDemand'}, division between two methods messy at the moment
 
 
-%% Declare properties of artificial demand signal
+%% Declare properties of artificial demand / pv signal
 sglMagnitude = 5;
 noiseMagnitudes = [0, 2.5, 5, 7.5, 10];
-tsTrainLengths = [32]; %#ok<NBRAK>
-tsTestLength = 50*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+tsTrainLengths = 2; %[32]; %#ok<NBRAK>
+tsTestLength = 2*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 %% Initialize results vectors
 prr_UC = zeros(length(tsTrainLengths), length(noiseMagnitudes));
@@ -59,16 +72,37 @@ for tsTrIdx = 1:length(tsTrainLengths)
         timeSeriesData = max(0, timeSeriesData);
         avgLoad = mean(timeSeriesData);
         
+        % And PV data if we're looking at OSO:
+        if isequal(type, 'oso')
+            timeSeriesDataPv = noisySine(sglMagnitude, cfg.fc.seasonalPeriod,...
+                noiseMagnitude, tsTrainLength + tsTestLength); %#ok<*PFBNS>
+        
+            timeSeriesDataPv = max(0, timeSeriesDataPv);
+            timeSeriesDataPv = circshift(timeSeriesDataPv, ...
+                [floor(cfg.fc.seasonalPeriod/2), 0]);
+            
         % Declare battery properties
-        battery = Battery(cfg, avgLoad*cfg.sim.batteryCapacityRatio*...
+        elseif isequal(type, 'minMaxDemand')
+            battery = Battery(cfg, avgLoad*cfg.sim.batteryCapacityRatio*...
             cfg.sim.stepsPerDay);
+        else
+            error('type of optimization not implemented yet');
+        end
         
         trainDemandSeries = timeSeriesData(1:tsTrainLength);
         testDemandSeries = timeSeriesData((length(trainDemandSeries)...
             +1):end);
-        
         if length(testDemandSeries) ~= tsTestLength
-            error('Test time series length not as expected');
+            error('Demand Test time series length not as expected');
+        end
+        
+        if isequal(type, 'oso')
+            trainPvSeries = timeSeriesDataPv(1:tsTrainLength);
+            testPvSeries = timeSeriesDataPv((length(trainDemandSeries)...
+                +1):end);
+            if length(testPvSeries) ~= tsTestLength
+                error('PV Test time series length not as expected');
+            end
         end
         
         noiseFreeTs = noisySine(sglMagnitude, cfg.fc.seasonalPeriod, 0, ...
@@ -77,29 +111,59 @@ for tsTrIdx = 1:length(tsTrainLengths)
         noiseFreeTs = max(0, noiseFreeTs);
         noiseFreeTsTest = noiseFreeTs((end - (tsTestLength-1)):end);
         
+        if isequal(type, 'oso')
+            noiseFreeTsPv = circshift(noiseFreeTs, ...
+                [floor(cfg.fc.seasonalPeriod/2), 0]);
+            
+            noiseFreeTsPvTest = noiseFreeTsPv((end - (tsTestLength-1)):...
+                end);
+        end
+        
         % Separate off data for initialization:
         demandDelays = trainDemandSeries(1:cfg.fc.nLags);
         trainDemandData = trainDemandSeries((cfg.fc.nLags + 1):end);
         
+        if isequal(type, 'oso')
+            % Separate off data for initialization:
+            pvDelays = trainPvSeries(1:cfg.fc.nLags);
+            trainPvData = trainPvSeries((cfg.fc.nLags + 1):end); 
+        end
         
         %% 3a) Run exact controller on training data, with godCast
         % to get training data for UC
-        
         godCastTrain = createGodCast(trainDemandData, cfg.sim.horizon);
         
-        % featVecs = [forecasts; stateOfCharge; (demandNow); peakSoFar];
+        if isequal(type, 'oso')
+            godCastTrainPv = createGodCast(trainPvData, cfg.sim.horizon);
+        end
+        
         disp('=== Run t-series Experiments ===');
         
-        runControl.godCast = true;
-        runControl.naivePeriodic = false;
-        runControl.setPoint = false;
-        runControl.modelCast = false;
-        runControl.forecastFree = false;
-        
-        [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(cfg, ...
-            [], godCastTrain, trainDemandData, demandDelays, battery,...
-            runControl);
-        
+        if isequal(type, '')
+            runControl.godCast = true;
+            runControl.naivePeriodic = false;
+            runControl.setPoint = false;
+            runControl.modelCast = false;
+            runControl.forecastFree = false;
+            runControl.type = type;
+            
+            [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(cfg, ...
+                [], godCastTrain, trainDemandData, demandDelays, battery,...
+                runControl);
+        else
+            % For now: just have separate controller function (to be tidied)
+            [ totalCost, chargeProfile, totalDamageCost, ...
+                demForecastUsed, pvForecastUsed, chargeDecisions] = ...
+                mpcControllerDp( [], godCastTrain, trainDemandData,...
+                godCastTrainPv, trainPvData, cfg.sim, demandDelays, pvDelays,...
+                runControl)
+            
+            % Response <chargeDecision, (Var. to do with SetPoint)>
+            responseGc = ;
+            
+            % Feature <>
+            featureVectorGc = ;
+        end
         
         %% 4a) Divide data into training/testing and train UC
         nObsTrain = size(godCastTrain, 1);
