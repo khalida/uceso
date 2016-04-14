@@ -31,7 +31,7 @@ if isequal(cfg.type, 'oso')
         allPvFcs{instance} = cell(cfg.sim.nMethods, 1);
     end
     % Avoid parfor error:
-    meanKWhs(instance) = mean(data.demand(:, instance));
+    meanKWhs = zeros(cfg.sim.nInstances, 1);
 else
     peakReductions = cell(cfg.sim.nInstances, 1);
     peakPowers = cell(cfg.sim.nInstances, 1);
@@ -43,6 +43,7 @@ else
     featureVectors = cell(cfg.sim.nInstances, 1);
     
     for instance = 1:cfg.sim.nInstances
+        meanKWhs(instance) = mean(data.demand(:, instance));
         peakReductions{instance} = zeros(cfg.sim.nMethods,1);
         peakPowers{instance} = zeros(cfg.sim.nMethods,1);
         smallestExitFlag{instance} = zeros(cfg.sim.nMethods,1);
