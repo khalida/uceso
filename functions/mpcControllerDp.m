@@ -88,6 +88,10 @@ for idx = 1:nIdxs;
             demandForecast = demGodCast(idx, :)';
             pvForecast = pvGodCast(idx, :)';
             
+        elseif isfield(runControl, 'modelCast') && runControl.modelCast
+            demandForecast = demGodCast(idx, :)';
+            pvForecast = pvGodCast(idx, :)';
+            
         elseif runControl.naivePeriodic
             demandForecast = demandDelays(end-cfg.sim.horizon+1:end);
             pvForecast = pvDelays(end-cfg.sim.horizon+1:end);
@@ -165,7 +169,7 @@ for idx = 1:nIdxs;
     pvDelays = [pvDelays(2:end); pvNow];
     
     % DEBUGGING:
-    if mod(idx, 200) == 0
+    if mod(idx, 1000) == 0
         disp('idx done: ');
         disp(idx);
     end

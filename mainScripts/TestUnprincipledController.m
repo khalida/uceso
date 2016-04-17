@@ -2,27 +2,34 @@
 % Trained using output from a principled controller (in our application)
 
 %% minMaxDemand controller has been implemented in controllerOptimizer:
-%[energyToBattery, exitFlag] = controllerOptimizer(cfg, ...
-            % forecast, demandNow, battery, peakSoFar)
+%[ runningPeak, exitFlag, forecastUsed, respVecs, featVecs, ...
+%    b0_raw ] = mpcController(cfg, trainedModel, godCast, demand, ...
+%    demandDelays, battery, runControl)
 
 % And it requires the following INPUTS:
 % cfg:              Structure of running options
-% forecast:         Demand forecast for next k steps [kWh]
-% stateOfCharge:    [kWh] in battery at start of interval
-% demandNow:        Actual demand for current interval [kWh]
-% battery:          Structure containing information about the batt [kWh]
-% peakSoFar:        Running peak demand in billing period [kWh]
+% trainedModel:     Trained forecast (or unprincipled controller) model
+% godCast:          Matrix of perfect foresight forecasts
+% denmand:          Demand time series on which to run model [kWh]
+% demandDelays:     Initial nLag lags of demand [kWh]
+% battery:          Structure containing information about the batt
+% runControl:       Running options
 
 
 %% oso controller implemented in controllerDp.m
-% [bestChargeStep, bestCTG] = controllerDp(cfg, demForecast, pvForecast, ...
-            % battery, hourNow);
-            
+% [ totalCost, chargeProfile, totalDamageCost, demForecastUsed,...
+%    pvForecastUsed, respVecs, featVecs] = mpcControllerDp(cfg, ...
+%    trainedModel, demGodCast, demand, pvGodCast, pv, demandDelays,...
+%    pvDelays, battery, runControl)
+
+% And it requires the following INPUTS:
 % cfg:              Structure of running options
-% dem|pv|forecast:  Demand and PV forecast for next cfg.sim.horizon steps [kWh]
-% SoC_initstateOfCharge:    [kWh] in battery at start of interval
+% trainedModel:     Trained forecast (or unprincipled controller) model
+% dem|pv|godCast:   Demand and PV perfect foresight forecast [kWh]
+% demand|pv:        Demand and PV time series on which to run mdoel [kWh]
+% demand|pv|Delays: Initial nLag lags of demand and pv [kWh]
 % battery:          Object representing the battery
-% hourNow:          Time of day
+% runControl:       Running options
 
 
 %% 0) Tidy up & Load functions
@@ -35,32 +42,42 @@ plotEachTrainLength = true;  %#ok<*UNRCH>
 %% 1) Running Options
 % Load from Config():
 cfg = Config(pwd);
-type = 'oso';      % {'oso', 'minMaxDemand'}, division between two methods messy at the moment
 
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5;
-noiseMagnitudes = [0, 2.5, 5, 7.5, 10];
-tsTrainLengths = 2; %[32]; %#ok<NBRAK>
-tsTestLength = 2*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+noiseMagnitudes = [0]; %#ok<NBRAK> %, 2.5, 5, 7.5];
+tsTrainLengths = [32]; %#ok<NBRAK>
+tsTestLength = 10*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 %% Initialize results vectors
-prr_UC = zeros(length(tsTrainLengths), length(noiseMagnitudes));
-prr_exactNP = prr_UC;
-prr_exactMC = prr_UC;
-prr_SP = prr_UC;
-prr_exactGodCast = prr_UC;
+% NB: performance is Peak reduction ratio for minMaxDemand (high good), for
+% oso it is the totalCost (low good)
+perf_UC = zeros(length(tsTrainLengths), length(noiseMagnitudes));
+perf_exactNP = perf_UC;
+perf_exactMC = perf_UC;
+perf_SP = perf_UC;
+perf_exactGodCast = perf_UC;
 
 for tsTrIdx = 1:length(tsTrainLengths)
     
     tsTrainLength = tsTrainLengths(tsTrIdx)*cfg.sim.horizon*...
         cfg.sim.billingPeriodDays;
     
-    parfor noiseIdx = 1:length(noiseMagnitudes)
+%     parfor noiseIdx = 1:length(noiseMagnitudes)
+    for noiseIdx = 1:length(noiseMagnitudes)
         
-        runControl = [];        % avoid parfor error
+        % Clear variables to avoid parfor warnings
+        runControl = [];        
         ax = cell(5,1);
         tsFig = [];
+        timeSeriesDataPv = [];
+        battery = []; %#ok<NASGU>
+        trainPvSeries = [];
+        testPvSeries = [];
+        noiseFreeTsTestPv = []; idxsCommon = [];
+        pvDelays = []; trainPvData = []; godCastTrainPv = [];
+        testPvData = []; godCastTestPv = []; runningPeak = [];
         
         noiseMagnitude = noiseMagnitudes(noiseIdx);
         
@@ -73,18 +90,22 @@ for tsTrIdx = 1:length(tsTrainLengths)
         avgLoad = mean(timeSeriesData);
         
         % And PV data if we're looking at OSO:
-        if isequal(type, 'oso')
-            timeSeriesDataPv = noisySine(sglMagnitude, cfg.fc.seasonalPeriod,...
-                noiseMagnitude, tsTrainLength + tsTestLength); %#ok<*PFBNS>
-        
+        if isequal(cfg.type, 'oso')
+            timeSeriesDataPv = noisySine(sglMagnitude, ...
+                cfg.fc.seasonalPeriod, noiseMagnitude, tsTrainLength +...
+                tsTestLength); %#ok<*PFBNS>
+            
             timeSeriesDataPv = max(0, timeSeriesDataPv);
             timeSeriesDataPv = circshift(timeSeriesDataPv, ...
                 [floor(cfg.fc.seasonalPeriod/2), 0]);
             
-        % Declare battery properties
-        elseif isequal(type, 'minMaxDemand')
+            % Declare battery properties (oso)
+            battery = Battery(cfg, cfg.sim.batteryCapacity);
+            
+        elseif isequal(cfg.type, 'minMaxDemand')
+            % Declare battery properties (minMaxDemand)
             battery = Battery(cfg, avgLoad*cfg.sim.batteryCapacityRatio*...
-            cfg.sim.stepsPerDay);
+                cfg.sim.stepsPerDay);
         else
             error('type of optimization not implemented yet');
         end
@@ -96,7 +117,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             error('Demand Test time series length not as expected');
         end
         
-        if isequal(type, 'oso')
+        if isequal(cfg.type, 'oso')
             trainPvSeries = timeSeriesDataPv(1:tsTrainLength);
             testPvSeries = timeSeriesDataPv((length(trainDemandSeries)...
                 +1):end);
@@ -105,17 +126,17 @@ for tsTrIdx = 1:length(tsTrainLengths)
             end
         end
         
-        noiseFreeTs = noisySine(sglMagnitude, cfg.fc.seasonalPeriod, 0, ...
-            tsTrainLength + tsTestLength);
+        noiseFreeTsDem = noisySine(sglMagnitude, cfg.fc.seasonalPeriod,...
+            0, tsTrainLength + tsTestLength);
         
-        noiseFreeTs = max(0, noiseFreeTs);
-        noiseFreeTsTest = noiseFreeTs((end - (tsTestLength-1)):end);
+        noiseFreeTsDem = max(0, noiseFreeTsDem);
+        noiseFreeTsTestDem = noiseFreeTsDem((end - (tsTestLength-1)):end);
         
-        if isequal(type, 'oso')
-            noiseFreeTsPv = circshift(noiseFreeTs, ...
+        if isequal(cfg.type, 'oso')
+            noiseFreeTsPv = circshift(noiseFreeTsTestDem, ...
                 [floor(cfg.fc.seasonalPeriod/2), 0]);
             
-            noiseFreeTsPvTest = noiseFreeTsPv((end - (tsTestLength-1)):...
+            noiseFreeTsTestPv = noiseFreeTsPv((end - (tsTestLength-1)):...
                 end);
         end
         
@@ -123,50 +144,43 @@ for tsTrIdx = 1:length(tsTrainLengths)
         demandDelays = trainDemandSeries(1:cfg.fc.nLags);
         trainDemandData = trainDemandSeries((cfg.fc.nLags + 1):end);
         
-        if isequal(type, 'oso')
+        if isequal(cfg.type, 'oso')
             % Separate off data for initialization:
             pvDelays = trainPvSeries(1:cfg.fc.nLags);
-            trainPvData = trainPvSeries((cfg.fc.nLags + 1):end); 
+            trainPvData = trainPvSeries((cfg.fc.nLags + 1):end);
         end
         
         %% 3a) Run exact controller on training data, with godCast
         % to get training data for UC
-        godCastTrain = createGodCast(trainDemandData, cfg.sim.horizon);
+        godCastTrainDem = createGodCast(trainDemandData, cfg.sim.horizon);
         
-        if isequal(type, 'oso')
+        if isequal(cfg.type, 'oso')
             godCastTrainPv = createGodCast(trainPvData, cfg.sim.horizon);
         end
         
         disp('=== Run t-series Experiments ===');
         
-        if isequal(type, '')
-            runControl.godCast = true;
-            runControl.naivePeriodic = false;
-            runControl.setPoint = false;
-            runControl.modelCast = false;
-            runControl.forecastFree = false;
-            runControl.type = type;
-            
-            [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(cfg, ...
-                [], godCastTrain, trainDemandData, demandDelays, battery,...
-                runControl);
+        runControl.godCast = true;
+        runControl.naivePeriodic = false;
+        runControl.setPoint = false;
+        runControl.modelCast = false;
+        runControl.forecastFree = false;
+        runControl.NB = false;
+        
+        if isequal(cfg.type, 'oso')
+            % For now: just have separate controller function
+            [ ~, ~, ~, ~, ~, responseGc, featureVectorGc] = ...
+                mpcControllerDp(cfg, [], godCastTrainDem,...
+                trainDemandData, godCastTrainPv, trainPvData,...
+                demandDelays, pvDelays, battery, runControl);
         else
-            % For now: just have separate controller function (to be tidied)
-            [ totalCost, chargeProfile, totalDamageCost, ...
-                demForecastUsed, pvForecastUsed, chargeDecisions] = ...
-                mpcControllerDp( [], godCastTrain, trainDemandData,...
-                godCastTrainPv, trainPvData, cfg.sim, demandDelays, pvDelays,...
-                runControl)
-            
-            % Response <chargeDecision, (Var. to do with SetPoint)>
-            responseGc = ;
-            
-            % Feature <>
-            featureVectorGc = ;
+            [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(...
+                cfg, [], godCastTrainDem, trainDemandData, demandDelays,...
+                battery, runControl);
         end
         
         %% 4a) Divide data into training/testing and train UC
-        nObsTrain = size(godCastTrain, 1);
+        nObsTrain = size(godCastTrainDem, 1);
         trainIdxs = 1:ceil(nObsTrain*cfg.fc.trainRatio);
         testIdxs = (max(trainIdxs)+1):nObsTrain;
         
@@ -184,8 +198,8 @@ for tsTrIdx = 1:length(tsTrainLengths)
         
         
         %% 4c) Performance on validation data
-        %(this just tests how well an input/output mapping replicates the
-        %optimiser)
+        % (this just tests how well an input/output mapping replicates the
+        % optimiser, nothing to do with if controller works!)
         if plotEachTrainLength
             figure();
             estimatedRespVecsVal = unprincipledController(featVecsVal);
@@ -206,27 +220,43 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.setPoint = false;
         runControl.modelCast = false;
         runControl.forecastFree = false;
+        runControl.NB = false;
         
         demandDelays = testDemandSeries(1:cfg.fc.nLags);
         testDemandData = testDemandSeries((cfg.fc.nLags + 1):end);
-        godCastTest = createGodCast(testDemandData, cfg.sim.horizon);
+        godCastTestDem = createGodCast(testDemandData, cfg.sim.horizon);
         
         disp('=== SIM: Exact controller, godCast ===');
-        [ runningPeak, ~, ~, respGcTest, featVectorGcTest, ~] = ...
-            mpcController(cfg, [], godCastTest, testDemandData, ...
-            demandDelays, battery, runControl);
+        if isequal(cfg.type, 'oso')
+            % Run OSO model
+            pvDelays = testPvSeries(1:cfg.fc.nLags);
+            testPvData = testPvSeries((cfg.fc.nLags + 1):end);
+            godCastTestPv = createGodCast(testPvData, cfg.sim.horizon);
+            
+            [ perf_exactGodCast(tsTrIdx, noiseIdx), ~, ~, ~, ~,...
+                respGcTest, featVectorGcTest] = mpcControllerDp(cfg, [],...
+                godCastTestDem, testDemandData, godCastTestPv,...
+                testPvData, demandDelays, pvDelays, battery, runControl);
+            
+        else
+            % Run minMaxDemand model
+            [ runningPeak, ~, ~, respGcTest, featVectorGcTest, ~] = ...
+                mpcController(cfg, [], godCastTestDem, testDemandData, ...
+                demandDelays, battery, runControl);
+            
+            lastIdxCommon = length(runningPeak) - mod(length(...
+                runningPeak), cfg.sim.horizon*cfg.sim.billingPeriodDays);
+            
+            idxsCommon = 1:lastIdxCommon;
+            
+            perf_exactGodCast(tsTrIdx, noiseIdx) = ...
+                extractSimulationResults(runningPeak(idxsCommon)', ...
+                testDemandSeries(idxsCommon),...
+                cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        end
         
-        lastIdxCommon = length(runningPeak) - mod(length(runningPeak), ...
-            cfg.sim.horizon*cfg.sim.billingPeriodDays);
-        
-        idxsCommon = 1:lastIdxCommon;
-        
-        prr_exactGodCast(tsTrIdx, noiseIdx) = ...
-            extractSimulationResults(runningPeak(idxsCommon)', ...
-            testDemandSeries(idxsCommon),...
-            cfg.sim.horizon*cfg.sim.billingPeriodDays);
-        
-        if plotEachTrainLength
+        % Haven't worked out oso plotting just yet
+        if plotEachTrainLength && isequal(cfg.type, 'minMaxDemand')
             tsFig = figure();
             plotIdx = 1;
             ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, ...
@@ -236,26 +266,42 @@ for tsTrIdx = 1:length(tsTrainLengths)
         end
         
         %% 5b) Exact controller with modelCast
-        modelCastData = noiseFreeTsTest((cfg.fc.nLags + 1):end);
-        modelCast = createGodCast(modelCastData, cfg.sim.horizon);
+        modelCastDataDem = noiseFreeTsTestDem((cfg.fc.nLags + 1):end);
+        modelCastDem = createGodCast(modelCastDataDem, cfg.sim.horizon);
         
         runControl.godCast = false;
         runControl.naivePeriodic = false;
         runControl.setPoint = false;
         runControl.modelCast = true;
         runControl.forecastFree = false;
-                        
+        runControl.NB = false;
+        
         disp('=== SIM: Exact controller, modelCast ===');
-        [ runningPeak, ~, ~, respVectorMc, featVectorMc, ~] = ...
-            mpcController(cfg, [], modelCast, testDemandData, ...
-            demandDelays, battery, runControl);
         
-        prr_exactMC(tsTrIdx, noiseIdx) = ...
-            extractSimulationResults(runningPeak(idxsCommon)', ...
-            testDemandSeries(idxsCommon),...
-            cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        if isequal(cfg.type, 'oso')
+            % Run OSO model
+            modelCastDataPv = noiseFreeTsTestPv((cfg.fc.nLags + 1):end);
+            modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
+            
+            [ perf_exactMC(tsTrIdx, noiseIdx), ~, ~, ~, ~,...
+                respVectorMc, featVectorMc] = mpcControllerDp(cfg, [],...
+                modelCastDem, testDemandData, modelCastPv, testPvData,...
+                demandDelays, pvDelays, battery, runControl);
+            
+        else
+            % Run minMaxDemand model
+            [ runningPeak, ~, ~, respVectorMc, featVectorMc, ~] = ...
+                mpcController(cfg, [], modelCastDem, testDemandData, ...
+                demandDelays, battery, runControl);
+            
+            perf_exactMC(tsTrIdx, noiseIdx) = ...
+                extractSimulationResults(runningPeak(idxsCommon)', ...
+                testDemandSeries(idxsCommon),...
+                cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        end
         
-        if plotEachTrainLength
+        
+        if plotEachTrainLength && isequal(cfg.type, 'minMaxDemand')
             plotIdx = 2;
             ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
                 runningPeak(idxsCommon), avgLoad, ...
@@ -269,22 +315,35 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.setPoint = false;
         runControl.modelCast = false;
         runControl.forecastFree = false;
+        runControl.NB = false;
         
         disp('=== SIM: Exact controller, NP ===');
-        [ runningPeak, ~, ~, respVecNp, featVecNp, ~] = ...
-            mpcController(cfg, [], godCastTest, testDemandData, ...
-            demandDelays, battery, runControl);
-
-        prr_exactNP(tsTrIdx, noiseIdx) = ...
-            extractSimulationResults(runningPeak(idxsCommon)', ...
-            testDemandSeries(idxsCommon),...
-            cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        if isequal(cfg.type, 'oso')
+            % Run OSO model
+            modelCastDataPv = noiseFreeTsTestPv((cfg.fc.nLags + 1):end);
+            modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
+            
+            [ perf_exactNP(tsTrIdx, noiseIdx), ~, ~, ~, ~, ...
+                respVecNp, featVecNp] = mpcControllerDp(cfg, [],...
+                godCastTestDem, testDemandData, godCastTestPv, testPvData,...
+                demandDelays, pvDelays, battery, runControl);
+        else
+            % Run minMaxDemand model
+            [ runningPeak, ~, ~, respVecNp, featVecNp, ~] = ...
+                mpcController(cfg, [], godCastTestDem, testDemandData, ...
+                demandDelays, battery, runControl);
+            
+            perf_exactNP(tsTrIdx, noiseIdx) = ...
+                extractSimulationResults(runningPeak(idxsCommon)', ...
+                testDemandSeries(idxsCommon),...
+                cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        end
         
-        if plotEachTrainLength
+        if plotEachTrainLength && isequal(cfg.type, 'minMaxDemand')
             plotIdx = 3;
-            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
-                runningPeak(idxsCommon), avgLoad, ...
-                featVecNp(cfg.fc.nLags+1,idxsCommon), battery,...
+            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, ...
+                testDemandSeries(idxsCommon), runningPeak(idxsCommon),...
+                avgLoad, featVecNp(cfg.fc.nLags+1,idxsCommon), battery,...
                 'Exact ctrl, NP fcast', nObsTrain);
         end
         
@@ -294,24 +353,39 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.setPoint = false;
         runControl.modelCast = false;
         runControl.forecastFree = true;
+        runControl.NB = false;
         
         disp(['=== SIM: UP controller, sees future: ',...
             num2str(cfg.fc.knowFutureFF), ' ===']);
         
-        [ runningPeak, ~, ~, respVecUp, featVecUp, b0_Up_raw ] = ...
-            mpcController(cfg, unprincipledController, ...
-            godCastTest, testDemandData, demandDelays, battery, ...
-            runControl);
+        if isequal(cfg.type, 'oso')
+            % Run OSO model
+            modelCastDataPv = noiseFreeTsTestPv((cfg.fc.nLags + 1):end);
+            modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
+            
+            [ perf_UC(tsTrIdx, noiseIdx), b0_Up_raw, ~, ~, ~, ...
+                respVecUp, featVecUp] = mpcControllerDp(cfg, ...
+                unprincipledController, godCastTestDem, testDemandData,...
+                godCastTestPv, testPvData, demandDelays, pvDelays,...
+                battery, runControl);
+        else
+            % Run minMaxDemand model
+            [ runningPeak, ~, ~, respVecUp, featVecUp, b0_Up_raw ] = ...
+                mpcController(cfg, unprincipledController, ...
+                godCastTestDem, testDemandData, demandDelays, battery, ...
+                runControl);
+            
+            perf_UC(tsTrIdx, noiseIdx) = extractSimulationResults(...
+                runningPeak(idxsCommon)', testDemandSeries(idxsCommon), ...
+                cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        end
+
         
-        prr_UC(tsTrIdx, noiseIdx) = extractSimulationResults(...
-            runningPeak(idxsCommon)', testDemandSeries(idxsCommon), ...
-            cfg.sim.horizon*cfg.sim.billingPeriodDays);
-        
-        if plotEachTrainLength
+        if plotEachTrainLength && isequal(cfg.type, 'minMaxDemand')
             plotIdx = 4;
-            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
-                runningPeak(idxsCommon), avgLoad, ...
-                featVecUp(cfg.fc.nLags+1,idxsCommon), battery,...
+            ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, ...
+                testDemandSeries(idxsCommon), runningPeak(idxsCommon),...
+                avgLoad, featVecUp(cfg.fc.nLags+1,idxsCommon), battery,...
                 'Unprinc ctrl, NP fcast', nObsTrain);
         end
         
@@ -321,18 +395,31 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.setPoint = true;
         runControl.modelCast = false;
         runControl.forecastFree = false;
+        runControl.NB = false;
         
         disp('=== SIM: SP Controller ===');
-        [ runningPeak, exitFlag, fcUsed, ~, featVecSp, ~] = ...
-            mpcController(cfg, [], godCastTest, testDemandData, ...
-            demandDelays, battery, runControl);
-
-        prr_SP(tsTrIdx, noiseIdx) = ...
-            extractSimulationResults(runningPeak(idxsCommon)', ...
-            testDemandSeries(idxsCommon),...
-            cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        if isequal(cfg.type, 'oso')
+            % Run OSO model
+            modelCastDataPv = noiseFreeTsTestPv((cfg.fc.nLags + 1):end);
+            modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
+            
+            [ perf_SP(tsTrIdx, noiseIdx), ~, ~, ~, ~, ~, featVecSp] = ...
+                mpcControllerDp(cfg, unprincipledController, ...
+                godCastTestDem, testDemandData, godCastTestPv, ...
+                testPvData, demandDelays, pvDelays, battery, runControl);
+        else
+            % Run minMaxDemand model
+            [ runningPeak, ~, ~, ~, featVecSp, ~] = ...
+                mpcController(cfg, [], godCastTestDem, testDemandData, ...
+                demandDelays, battery, runControl);
+            
+            perf_SP(tsTrIdx, noiseIdx) = ...
+                extractSimulationResults(runningPeak(idxsCommon)', ...
+                testDemandSeries(idxsCommon),...
+                cfg.sim.horizon*cfg.sim.billingPeriodDays);
+        end
         
-        if plotEachTrainLength
+        if plotEachTrainLength && isequal(cfg.type, 'minMaxDemand')
             plotIdx = 5;
             ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, testDemandSeries(idxsCommon),...
                 runningPeak(idxsCommon), avgLoad, ...
@@ -372,27 +459,36 @@ end
 fig_1 = figure();
 for idx = 1:length(tsTrainLengths)
     subplot(length(tsTrainLengths), 2, 2*idx-1);
-    plot((noiseMagnitudes./sglMagnitude)', [prr_exactNP(idx, :);...
-        prr_exactMC(idx, :); prr_exactGodCast(idx, :);...
-        prr_UC(idx, :); prr_SP(idx, :)]', '.-');
+    plot((noiseMagnitudes./sglMagnitude)', [perf_exactNP(idx, :);...
+        perf_exactMC(idx, :); perf_exactGodCast(idx, :);...
+        perf_UC(idx, :); perf_SP(idx, :)]', '.-');
     
     legend({'Exact Controller, NP', 'Excat controller, modelCast', ...
         'Exact Controller, God Cast', 'Unprincipled Controller', ...
         'SP Controller'});
     
     grid on;
-    ylabel(['PRR, billing periods train: ' num2str(tsTrainLengths(idx))]);
+    if isequal(cfg.type, 'oso')
+        ylabel(['Cost, bill prds train: ' num2str(tsTrainLengths(idx))]);
+    else
+        ylabel(['PRR, bill prds train: ' num2str(tsTrainLengths(idx))]);
+    end
+    
     xlabel('Noise-to-signal Ratio');
     
     subplot(length(tsTrainLengths), 2, 2*idx);
     plot((noiseMagnitudes./sglMagnitude)', ...
-        [prr_exactNP(idx, :)./prr_exactGodCast(idx, :);...
-        prr_exactMC(idx, :)./prr_exactGodCast(idx, :); ...
-        prr_exactGodCast(idx, :)./prr_exactGodCast(idx, :);...
-        prr_UC(idx, :)./prr_exactGodCast(idx, :); ...
-        prr_SP(idx, :)./prr_exactGodCast(idx, :)]','.-');
+        [perf_exactNP(idx, :)./perf_exactGodCast(idx, :);...
+        perf_exactMC(idx, :)./perf_exactGodCast(idx, :); ...
+        perf_exactGodCast(idx, :)./perf_exactGodCast(idx, :);...
+        perf_UC(idx, :)./perf_exactGodCast(idx, :); ...
+        perf_SP(idx, :)./perf_exactGodCast(idx, :)]','.-');
     
-    ylabel('Relative PRR');
+    if isequal(cfg.type, 'oso')
+        ylabel('Relative Cost');
+    else
+        ylabel('Relative PRR');
+    end
     xlabel('Noise-to-signal Ratio');
     grid on;
 end
