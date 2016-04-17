@@ -39,6 +39,7 @@ tic;
 LoadFunctions;
 plotEachTrainLength = true;  %#ok<*UNRCH>
 
+
 %% 1) Running Options
 % Load from Config():
 cfg = Config(pwd);
@@ -47,8 +48,9 @@ cfg = Config(pwd);
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5;
 noiseMagnitudes = [0]; %#ok<NBRAK> %, 2.5, 5, 7.5];
-tsTrainLengths = [32]; %#ok<NBRAK>
-tsTestLength = 10*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+tsTrainLengths = [200]; %#ok<NBRAK>
+tsTestLength = 20*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+
 
 %% Initialize results vectors
 % NB: performance is Peak reduction ratio for minMaxDemand (high good), for
