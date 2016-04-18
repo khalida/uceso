@@ -1,5 +1,5 @@
 function [ totalCost, chargeProfile, totalDamageCost, demForecastUsed,...
-    pvForecastUsed, respVecs, featVecs] = mpcControllerDp(cfg, ...
+    pvForecastUsed, respVecs, featVecs, bestCTG] = mpcControllerDp(cfg, ...
     trainedModel, demGodCast, demand, pvGodCast, pv, demandDelays,...
     pvDelays, battery, runControl)
 
@@ -30,6 +30,7 @@ end
 totalCost = 0;
 totalDamageCost = 0;
 chargeProfile = zeros(1, nIdxs);
+bestCTG = zeros(1, nIdxs);
 demForecastUsed = zeros(cfg.sim.horizon, nIdxs);
 pvForecastUsed = zeros(cfg.sim.horizon, nIdxs);
 respVecs = zeros(1, nIdxs);
@@ -117,7 +118,7 @@ for idx = 1:nIdxs;
         pvForecastUsed(:, idx) = pvForecast;
         
         if ~runControl.setPoint
-            [bestDischargeStep, ~] = controllerDp(cfg, demandForecast,...
+            [bestDischargeStep, bestCTG(idx)] = controllerDp(cfg, demandForecast,...
                 pvForecast, battery, hourNow);
         else
             % Do set-point control:

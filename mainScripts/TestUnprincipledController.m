@@ -18,7 +18,7 @@
 
 %% oso controller implemented in controllerDp.m
 % [ totalCost, chargeProfile, totalDamageCost, demForecastUsed,...
-%    pvForecastUsed, respVecs, featVecs] = mpcControllerDp(cfg, ...
+%    pvForecastUsed, respVecs, featVecs, bestCTG] = mpcControllerDp(cfg, ...
 %    trainedModel, demGodCast, demand, pvGodCast, pv, demandDelays,...
 %    pvDelays, battery, runControl)
 
@@ -47,9 +47,9 @@ cfg = Config(pwd);
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5;
-noiseMagnitudes = [0]; %#ok<NBRAK> %, 2.5, 5, 7.5];
-tsTrainLengths = [200]; %#ok<NBRAK>
-tsTestLength = 20*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+noiseMagnitudes = [0, 2.5, 5, 7.5]; % ]; %#ok<NBRAK> %
+tsTrainLengths = [32]; %#ok<NBRAK>
+tsTestLength = 32*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 
 %% Initialize results vectors
@@ -66,8 +66,8 @@ for tsTrIdx = 1:length(tsTrainLengths)
     tsTrainLength = tsTrainLengths(tsTrIdx)*cfg.sim.horizon*...
         cfg.sim.billingPeriodDays;
     
-%     parfor noiseIdx = 1:length(noiseMagnitudes)
-    for noiseIdx = 1:length(noiseMagnitudes)
+    parfor noiseIdx = 1:length(noiseMagnitudes)
+%     for noiseIdx = 1:length(noiseMagnitudes)
         
         % Clear variables to avoid parfor warnings
         runControl = [];        
@@ -84,12 +84,12 @@ for tsTrIdx = 1:length(tsTrainLengths)
         noiseMagnitude = noiseMagnitudes(noiseIdx);
         
         %% 2) Create artificial data
-        disp('=== Creating Data ===');
-        timeSeriesData = noisySine(sglMagnitude, cfg.fc.seasonalPeriod,...
+        disp(' === Creating Data === ');
+        timeSeriesDataDem = noisySine(sglMagnitude, cfg.fc.seasonalPeriod,...
             noiseMagnitude, tsTrainLength + tsTestLength); %#ok<*PFBNS>
         
-        timeSeriesData = max(0, timeSeriesData);
-        avgLoad = mean(timeSeriesData);
+        timeSeriesDataDem = max(0, timeSeriesDataDem);
+        avgLoad = mean(timeSeriesDataDem);
         
         % And PV data if we're looking at OSO:
         if isequal(cfg.type, 'oso')
@@ -112,8 +112,8 @@ for tsTrIdx = 1:length(tsTrainLengths)
             error('type of optimization not implemented yet');
         end
         
-        trainDemandSeries = timeSeriesData(1:tsTrainLength);
-        testDemandSeries = timeSeriesData((length(trainDemandSeries)...
+        trainDemandSeries = timeSeriesDataDem(1:tsTrainLength);
+        testDemandSeries = timeSeriesDataDem((length(trainDemandSeries)...
             +1):end);
         if length(testDemandSeries) ~= tsTestLength
             error('Demand Test time series length not as expected');
@@ -135,7 +135,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         noiseFreeTsTestDem = noiseFreeTsDem((end - (tsTestLength-1)):end);
         
         if isequal(cfg.type, 'oso')
-            noiseFreeTsPv = circshift(noiseFreeTsTestDem, ...
+            noiseFreeTsPv = circshift(noiseFreeTsDem, ...
                 [floor(cfg.fc.seasonalPeriod/2), 0]);
             
             noiseFreeTsTestPv = noiseFreeTsPv((end - (tsTestLength-1)):...
@@ -171,7 +171,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         
         if isequal(cfg.type, 'oso')
             % For now: just have separate controller function
-            [ ~, ~, ~, ~, ~, responseGc, featureVectorGc] = ...
+            [ ~, ~, ~, ~, ~, responseGc, featureVectorGc, bestCTG] = ...
                 mpcControllerDp(cfg, [], godCastTrainDem,...
                 trainDemandData, godCastTrainPv, trainPvData,...
                 demandDelays, pvDelays, battery, runControl);
@@ -236,7 +236,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             godCastTestPv = createGodCast(testPvData, cfg.sim.horizon);
             
             [ perf_exactGodCast(tsTrIdx, noiseIdx), ~, ~, ~, ~,...
-                respGcTest, featVectorGcTest] = mpcControllerDp(cfg, [],...
+                respGcTest, featVectorGcTest, ~] = mpcControllerDp(cfg, [],...
                 godCastTestDem, testDemandData, godCastTestPv,...
                 testPvData, demandDelays, pvDelays, battery, runControl);
             
@@ -286,7 +286,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
             
             [ perf_exactMC(tsTrIdx, noiseIdx), ~, ~, ~, ~,...
-                respVectorMc, featVectorMc] = mpcControllerDp(cfg, [],...
+                respVectorMc, featVectorMc, ~] = mpcControllerDp(cfg, [],...
                 modelCastDem, testDemandData, modelCastPv, testPvData,...
                 demandDelays, pvDelays, battery, runControl);
             
@@ -326,7 +326,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
             
             [ perf_exactNP(tsTrIdx, noiseIdx), ~, ~, ~, ~, ...
-                respVecNp, featVecNp] = mpcControllerDp(cfg, [],...
+                respVecNp, featVecNp, ~] = mpcControllerDp(cfg, [],...
                 godCastTestDem, testDemandData, godCastTestPv, testPvData,...
                 demandDelays, pvDelays, battery, runControl);
         else
@@ -366,7 +366,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
             
             [ perf_UC(tsTrIdx, noiseIdx), b0_Up_raw, ~, ~, ~, ...
-                respVecUp, featVecUp] = mpcControllerDp(cfg, ...
+                respVecUp, featVecUp, ~] = mpcControllerDp(cfg, ...
                 unprincipledController, godCastTestDem, testDemandData,...
                 godCastTestPv, testPvData, demandDelays, pvDelays,...
                 battery, runControl);
@@ -405,7 +405,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             modelCastDataPv = noiseFreeTsTestPv((cfg.fc.nLags + 1):end);
             modelCastPv = createGodCast(modelCastDataPv, cfg.sim.horizon);
             
-            [ perf_SP(tsTrIdx, noiseIdx), ~, ~, ~, ~, ~, featVecSp] = ...
+            [ perf_SP(tsTrIdx, noiseIdx), ~, ~, ~, ~, ~, featVecSp, ~]=...
                 mpcControllerDp(cfg, unprincipledController, ...
                 godCastTestDem, testDemandData, godCastTestPv, ...
                 testPvData, demandDelays, pvDelays, battery, runControl);

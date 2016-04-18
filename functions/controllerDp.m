@@ -67,7 +67,7 @@ for t = nStages:-1:1
             thisCTG = thisSTC + CTG(q-thisB, t+1);
             
             % Store decision if it's the best found so far
-            if(thisCTG < bestCTG)
+            if (thisCTG < bestCTG - cfg.sim.minCostDiff)
                 bestB = thisB;
                 bestCTG = thisCTG;
             end
