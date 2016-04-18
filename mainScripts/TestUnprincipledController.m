@@ -47,9 +47,9 @@ cfg = Config(pwd);
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5;
-noiseMagnitudes = [0, 2.5, 5, 7.5]; % ]; %#ok<NBRAK> %
-tsTrainLengths = [32]; %#ok<NBRAK>
-tsTestLength = 32*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+noiseMagnitudes = [0]; %#ok<NBRAK> %, 2.5, 5, 7.5]; % ];
+tsTrainLengths = [4]; %#ok<NBRAK>
+tsTestLength = 4*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 
 %% Initialize results vectors
@@ -170,11 +170,40 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.NB = false;
         
         if isequal(cfg.type, 'oso')
-            % For now: just have separate controller function
-            [ ~, ~, ~, ~, ~, responseGc, featureVectorGc, bestCTG] = ...
+            % Consider all possible integer inerval shifts of the data, to
+            % prevent only learning a single cycle solution
+            [ ~, ~, ~, ~, ~, thisResp, thisFeat, bestCTG] = ...
                 mpcControllerDp(cfg, [], godCastTrainDem,...
                 trainDemandData, godCastTrainPv, trainPvData,...
                 demandDelays, pvDelays, battery, runControl);
+            
+            nExample = size(thisFeat, 2);
+            
+            featureVectorGc = zeros(size(thisFeat, 1), ...
+                nExample.*cfg.sim.horizon);
+            
+            responseGc = zeros(size(thisResp, 1), ...
+                nExample.*cfg.sim.horizon);
+            
+            featureVectorGc(:, 1:nExample) = thisFeat;
+            responseGc(:, 1:nExample) = thisResp;
+            offset = nExample;
+            
+            for shift = 1:(cfg.sim.horizon-1)
+                [ ~, ~, ~, ~, ~, thisResp, thisFeat, bestCTG] = ...
+                    mpcControllerDp(cfg, [], circshift(godCastTrainDem,...
+                    [shift 0]), circshift(trainDemandData,[shift 0]),...
+                    circshift(godCastTrainPv, [shift 0]), circshift(...
+                    trainPvData,[shift 0]), circshift(demandDelays,...
+                    [shift 0]), circshift(pvDelays, [shift 0]), battery,...
+                    runControl);
+                
+                featureVectorGc(:, offset + (1:nExample)) = thisFeat;
+                responseGc(:, 1:nExample) = thisResp;
+                
+                offset = offset + nExample;
+            end
+            
         else
             [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(...
                 cfg, [], godCastTrainDem, trainDemandData, demandDelays,...
