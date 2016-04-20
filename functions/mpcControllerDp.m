@@ -20,11 +20,16 @@ end
 
 
 %% Initializations
-battery.reset();
+if isfield(runControl, 'initialState')
+    battery.reset(runControl.initialState);
+else
+    battery.reset();
+end
 nIdxs = size(demGodCast, 1);
 if nIdxs ~= size(pvGodCast, 1)
     error('pv and demand godcast not of same length');
 end
+
 
 %% Pre-Allocations
 totalCost = 0;
@@ -50,6 +55,12 @@ clear controllerDp; % Clear function so first horizon is plotted
 for idx = 1:nIdxs;
     demandNow = demand(idx);
     pvNow = pv(idx);
+    
+    if isfield(runControl, 'randomizeInterval')
+        if mod(idx, runControl.randomizeInterval) == 0
+            battery.reset(randsample(battery.statesInt, 1));
+        end
+    end
     
     % Have enforced elsewhere that training and testing data-set start at
     % t=0, TODO: need to check No. of idxs dropped for godCast doesnt
@@ -124,6 +135,10 @@ for idx = 1:nIdxs;
             % Do set-point control:
             bestDischargeValue = demandNow - pvNow;
             bestDischargeStep = round(bestDischargeValue./battery.increment);
+            
+            % Limit SP decision to feasible range
+            bestDischargeStep = ...
+                -battery.limitChargeStep(-bestDischargeStep);
         end
         
         % Implement set point recourse, if selected

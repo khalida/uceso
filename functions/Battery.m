@@ -31,7 +31,7 @@ classdef Battery < handle
                     
                     obj.increment = 1/cfg.opt.statesPerKwh;
                     obj.state = floor((0.5*capacity)/obj.increment)+1;
-                    obj.SoC = obj.state*obj.increment;
+                    obj.SoC = (obj.state-1)*obj.increment;
                     obj.statesKwh = (obj.statesInt-1).*obj.increment;
                     obj.maxDischargeStep = floor((obj.maxChargeRate/...
                         cfg.sim.stepsPerHour)/obj.increment);
@@ -98,15 +98,15 @@ classdef Battery < handle
             % Check for upper SoC violation
             if stepCharge + this.state > max(this.statesInt)
                 error(['Upper SoC constraint violation, '...
-                    'stepCharge+this.state:' num2str(kWhCharge+this.SoC)...
-                    ', max(this.statesInt):' ...
+                    'stepCharge+this.state:' num2str(stepCharge + ...
+                    this.state) ', max(this.statesInt):' ...
                     num2str(max(this.statesInt))]);
             end
             
             % Check for lower SoC violation
             if stepCharge + this.state < min(this.statesInt)
                 error(['Lower SoC constraint violation, '...
-                    'stepCharge+kWhCharge:' ...
+                    'stepCharge+this.state:' ...
                     num2str(stepCharge + this.state)]);
             end
             
@@ -168,12 +168,23 @@ classdef Battery < handle
         end
         
         % Reset the SoC of battery to starting value (0.5xcapacity)
-        function reset(this)
-            if isequal(this.type, 'oso')
-                this.state = floor((0.5*this.capacity)/this.increment) + 1;
-                this.SoC = (this.state-1)*this.increment;
+        function reset(this, varargin)
+            if isempty(varargin)
+                if isequal(this.type, 'oso')
+                    this.state = floor((0.5*this.capacity)/this.increment) + 1;
+                    this.SoC = (this.state-1)*this.increment;
+                else
+                    this.SoC = 0.5*this.capacity;
+                end
+            elseif length(varargin) == 1
+                if isequal(this.type, 'oso')
+                    this.state = varargin{1};
+                    this.SoC = (this.state-1)*this.increment;
+                else
+                    this.SoC = varargin{1};
+                end
             else
-                this.SoC = 0.5*this.capacity;
+                error('too many input arguments');
             end
         end
     end
