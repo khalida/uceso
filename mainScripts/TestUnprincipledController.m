@@ -47,7 +47,7 @@ cfg = Config(pwd);
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5;
-noiseMagnitudes = [0]; %#ok<NBRAK> %, 2.5, 5, 7.5]; % ];
+noiseMagnitudes = [0, 2.5]; %, 5, 7.5]; % ];
 tsTrainLengths = [4]; %#ok<NBRAK>
 tsTestLength = 4*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
@@ -199,7 +199,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
                     runControl);
                 
                 featureVectorGc(:, offset + (1:nExample)) = thisFeat;
-                responseGc(:, 1:nExample) = thisResp;
+                responseGc(:, offset + (1:nExample)) = thisResp;
                 
                 offset = offset + nExample;
             end
@@ -211,7 +211,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         end
         
         %% 4a) Divide data into training/testing and train UC
-        nObsTrain = size(godCastTrainDem, 1);
+        nObsTrain = size(featureVectorGc, 2);
         trainIdxs = 1:ceil(nObsTrain*cfg.fc.trainRatio);
         testIdxs = (max(trainIdxs)+1):nObsTrain;
         

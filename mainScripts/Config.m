@@ -58,6 +58,7 @@ else
     cfg.sim.batteryEtaC = 0.94;
     cfg.sim.batteryEtaD = 0.94;
     cfg.sim.batteryCostPerKwhUsed = 0;
+    cfg.sim.minCostDiff = 1e-6;
 end
 cfg.sim.batteryChargingFactor = 4;  % ratio of charge rate to capacity
 cfg.sim.nDaysTest = 1*7; %38*7;           % days to run simulation for
@@ -80,11 +81,11 @@ cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
 cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
-cfg.fc.nStart = 2;                  % No. initializations
+cfg.fc.nStart = 4;                  % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
 cfg.fc.mseEpochs = 4000;
-cfg.fc.maxTime = 1*60; %30*60;             % Max seconds to train one NN
+cfg.fc.maxTime = 30*60;             % Max seconds to train one NN
 cfg.fc.nRecursive = 1;              % No. of recursive feedbacks for RNN
 cfg.fc.clipNegative = true;         % Prevent output fcasts from being -ve
 
