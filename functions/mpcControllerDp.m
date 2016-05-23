@@ -1,5 +1,5 @@
 function [ totalCost, chargeProfile, totalDamageCost, demForecastUsed,...
-    pvForecastUsed, respVecs, featVecs, bestCTG] = mpcControllerDp(cfg, ...
+    pvForecastUsed, respVecs, featVecs, bestCTG, imp, exp] = mpcControllerDp(cfg, ...
     trainedModel, demGodCast, demand, pvGodCast, pv, demandDelays,...
     pvDelays, battery, runControl)
 
@@ -21,7 +21,7 @@ end
 
 %% Initializations
 if isfield(runControl, 'initialState')
-    battery.reset(runControl.initialState);
+    battery.randomReset();
 else
     battery.reset();
 end
@@ -39,6 +39,14 @@ bestCTG = zeros(1, nIdxs);
 demForecastUsed = zeros(cfg.sim.horizon, nIdxs);
 pvForecastUsed = zeros(cfg.sim.horizon, nIdxs);
 respVecs = zeros(1, nIdxs);
+imp = zeros(1, nIdxs);
+exp = zeros(1, nIdxs);
+
+% DEBUGGING:
+cumulativeValue = zeros(1, nIdxs);
+valueOverNBs = zeros(1, nIdxs);
+b_hats = zeros(1,nIdxs);
+batteryValues = zeros(1, nIdxs);
 
 % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
 % hourNum]
@@ -58,7 +66,7 @@ for idx = 1:nIdxs;
     
     if isfield(runControl, 'randomizeInterval')
         if mod(idx, runControl.randomizeInterval) == 0
-            battery.reset(randsample(battery.statesInt, 1));
+            battery.randomReset();
         end
     end
     
@@ -68,6 +76,8 @@ for idx = 1:nIdxs;
     hourNow = mod(idx, cfg.sim.stepsPerDay);
     
     [importPrice, exportPrice] = getGridPrices(hourNow);
+    imp(idx) = importPrice;
+    exp(idx) = exportPrice;
     
     % Create Feature/Response Vec for FF controller training!
     % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
@@ -129,12 +139,13 @@ for idx = 1:nIdxs;
         pvForecastUsed(:, idx) = pvForecast;
         
         if ~runControl.setPoint
-            [bestDischargeStep, bestCTG(idx)] = controllerDp(cfg, demandForecast,...
-                pvForecast, battery, hourNow);
+            [bestDischargeStep, bestCTG(idx)] = controllerDp(cfg, ...
+                demandForecast, pvForecast, battery, hourNow);
         else
             % Do set-point control:
             bestDischargeValue = demandNow - pvNow;
-            bestDischargeStep = round(bestDischargeValue./battery.increment);
+            bestDischargeStep = round(bestDischargeValue./...
+                battery.increment);
             
             % Limit SP decision to feasible range
             bestDischargeStep = ...
@@ -160,25 +171,47 @@ for idx = 1:nIdxs;
         respVecs(:, idx) = bestDischargeStep;
         
         if bestDischargeStep < 0
-            b_hat = bestDischargeStep*battery.increment/cfg.sim.batteryEtaC;
+            b_hat = (bestDischargeStep*battery.increment)...
+                /cfg.sim.batteryEtaC;
         else
-            b_hat = bestDischargeStep*battery.increment*cfg.sim.batteryEtaD;
+            b_hat = (bestDischargeStep*battery.increment)...
+                *cfg.sim.batteryEtaD;
         end
     end
     
     % Apply control decision, subject to rate and state of charge
     % constriants
     chargeProfile(idx) = battery.SoC;
-    battery.chargeStep(-bestDischargeStep);
-    
-    damageCost = cfg.sim.batteryCostPerKwhUsed*abs(b_hat);
-    totalDamageCost = totalDamageCost + damageCost;
     
     % Energy from grid during interval
     g_t = demandNow - pvNow - b_hat;
+    costWithBattery = importPrice*max(0,g_t) - exportPrice*max(0,-g_t);
     
-    totalCost = totalCost + importPrice*max(0,g_t) - ...
-        exportPrice*max(0,-g_t) + damageCost;
+    g_t_noBatt = demandNow - pvNow;
+    costWithoutBattery = importPrice*max(0,g_t_noBatt) - ...
+        exportPrice*max(0,-g_t_noBatt);
+    
+    valueOverNB = costWithoutBattery - costWithBattery;
+    if idx == 1
+        cumulativeValue(idx) = valueOverNB;
+    else
+        cumulativeValue(idx) = cumulativeValue(idx-1) + valueOverNB;
+    end
+    
+    battery.chargeStep(-bestDischargeStep, valueOverNB);
+    
+    valueOverNBs(idx) = valueOverNB;
+    b_hats(idx) = b_hat;
+    batteryValues(idx) = battery.Value();
+
+    
+    fracDegradation = calcFracDegradation(cfg, battery, battery.state,...
+        bestDischargeStep);
+    
+    damageCost = battery.Value()*fracDegradation;
+    totalDamageCost = totalDamageCost + damageCost;
+    
+    totalCost = totalCost + costWithBattery + damageCost;
     
     % Shift demand delays (and add current demand)
     demandDelays = [demandDelays(2:end); demandNow];
@@ -190,5 +223,10 @@ for idx = 1:nIdxs;
         disp(idx);
     end
 end
+
+figure;
+plot(cumulativeValue);
+disp('Ending Battery Value: ');
+disp(battery.Value());
 
 end

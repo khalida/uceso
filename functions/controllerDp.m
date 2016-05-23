@@ -4,7 +4,7 @@ function [bestDischargeStep, bestCTG] = controllerDp(cfg, demandForecast, ...
 % controllerDp: Solve dynamic program for the curent horizon, to
 % minimise costs
 
-% Positive b is discharging the battery!
+% Positive b is DISCHARGING the battery!
 
 persistent doneHorizonPlot;
 
@@ -30,7 +30,8 @@ for t = nStages:-1:1
     % For all possible starting states
     for q = 1:nStates
         
-        % Initialise bestCTG to a large value and best discharge to infeasible value
+        % Initialise bestCTG to large value 
+        % and best discharge to infeasible value
         bestCTG = inf;
         bestB = inf;
         
@@ -38,10 +39,10 @@ for t = nStages:-1:1
         this_b_min_int = max(b_min_int, q-nStates);
         this_b_max_int = min(b_max_int, q-1);
         
-        % For each feasible charging decision check the resulting CTG
+        % For each feasible discharging decision check the resulting CTG
         for thisB = this_b_min_int:this_b_max_int
             
-            % Find net power into battery from grid (account for losses)
+            % Find net power from battery (account for losses)
             if thisB > 0
                 b_hat = thisB*battery.increment*cfg.sim.batteryEtaD;
             else
@@ -55,15 +56,17 @@ for t = nStages:-1:1
             [importPrice, exportPrice] = getGridPrices(...
                 mod(hourNow+t-1, cfg.sim.horizon));
             
-            % Find battery damange cost
-            damageCost = cfg.sim.batteryCostPerKwhUsed * abs(thisB) *...
-                battery.increment;
+            % Find battery damage cost
+            fracDegradation = calcFracDegradation(cfg, battery, q, ...
+                thisB);
+            
+            damageCost = fracDegradation*battery.Value();
             
             % Total state transition cost for this decision from here
             thisSTC = importPrice*max(0,g_t) - ...
                 exportPrice*max(0,-g_t) + damageCost;
             
-            % Total cost-to-got for this decision from here
+            % Total cost-to-got for this decision from here to end
             thisCTG = thisSTC + CTG(q-thisB, t+1);
             
             % Store decision if it's the best found so far
@@ -74,7 +77,7 @@ for t = nStages:-1:1
             
         end
         
-        % Store the best charging decision found
+        % Store the best discharging decision found
         ST_b(q, t) = bestB;
         CTG(q, t) = bestCTG;
         

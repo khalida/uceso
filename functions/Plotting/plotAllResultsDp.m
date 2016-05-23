@@ -24,10 +24,10 @@ fig_1 = figure();
 
 % Absolute Total Costs
 subplot(3, 2, 1);
-boxplot(totalCost, methodList);
+boxplot(totalCost - totalDamageCost, methodList);
 grid on;
 xlabel('Method');
-ylabel('Total Cost [$]');
+ylabel('Total Actual Cost (excl dmg cost) [$]');
 hold off;
 
 % Relative Cost Ratios

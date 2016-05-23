@@ -2,7 +2,7 @@ classdef Battery < handle
     %BATTERY Represent a battery, track SoC, check for violations etc.
     
     properties
-        type                % store solution type {oso, minMaxDemand}
+        cfg                 % local copy of config variable
         SoC                 % kWh state of charge (energy in battery)
         state               % int state of charge
         capacity            % kWh capacity
@@ -13,22 +13,26 @@ classdef Battery < handle
         statesKwh           % list of kWh charge levels
         maxDischargeStep    % maxm No. of steps batt. can be discharged
         minDischargeStep    % minm (most -ve) steps batt can be discharged
+        eps                 % threshold for constraint checking
+        cumulativeDamage    % cumulative fractional damage in Sim so far
+        cumulativeValue     % total value of batt. in Sim so far
+        prevValue           % previous value est of battery
     end
     
     methods
         % Constructor
         function obj = Battery(cfg, capacity)
             if nargin > 0
-                obj.type = cfg.type;
+                obj.cfg = cfg;
                 obj.capacity = capacity;
                 obj.maxChargeRate = cfg.sim.batteryChargingFactor*...
                     capacity;
+                obj.eps = cfg.sim.eps;
                 
-                if isequal(cfg.type, 'oso')
+                if isequal(obj.cfg.type, 'oso')
                     % Initialize battery for Oso problem
-                    obj.statesInt = (0:(cfg.sim.batteryCapacity*...
-                        cfg.opt.statesPerKwh)) + 1;
-                    
+                    obj.statesInt = (0:(floor(capacity*...
+                        cfg.opt.statesPerKwh))) + 1;
                     obj.increment = 1/cfg.opt.statesPerKwh;
                     obj.state = floor((0.5*capacity)/obj.increment)+1;
                     obj.SoC = (obj.state-1)*obj.increment;
@@ -36,10 +40,14 @@ classdef Battery < handle
                     obj.maxDischargeStep = floor((obj.maxChargeRate/...
                         cfg.sim.stepsPerHour)/obj.increment);
                     obj.minDischargeStep = -obj.maxDischargeStep;
+                    obj.cumulativeDamage = eps;
+                    obj.cumulativeValue = 0;
+                    obj.prevValue = 1;
                 else
                     % Initialize battery for minMaxDemand problem
                     obj.maxChargeEnergy = obj.maxChargeRate/...
                         cfg.sim.stepsPerHour;
+                    obj.SoC = 0.5*obj.capacity;
                 end
             end
         end
@@ -48,28 +56,28 @@ classdef Battery < handle
         function chargeBy(this, kWhCharge)
             
             % Check for charge rate constraint violation:
-            if kWhCharge > this.maxChargeEnergy
+            if kWhCharge > this.maxChargeEnergy + this.eps
                 error(['Charge constraint violated, kWhCharge:'...
                     num2str(kWhCharge) ', maxChargeEnergy:'...
                     num2str(this.maxChargeEnergy)]);
             end
             
             % Check for discharge rate constraint violation:
-            if kWhCharge < -this.maxChargeEnergy
+            if kWhCharge < -this.maxChargeEnergy - this.eps
                 error(['Discharge constraint violated, kWhCharge:'...
                     num2str(kWhCharge) ', -maxChargeEnergy:'...
                     num2str(-this.maxChargeEnergy)]);
             end
             
             % Check for upper SoC violation
-            if kWhCharge + this.SoC > this.capacity
+            if kWhCharge + this.SoC > this.capacity + this.eps
                 error(['Upper SoC constraint violation, SoC+kWhCharge:'...
                     num2str(kWhCharge + this.SoC) ', capacity:'...
                     num2str(this.capacity)]);
             end
             
             % Check for lower SoC violation
-            if kWhCharge + this.SoC < 0
+            if kWhCharge + this.SoC < -this.eps
                 error(['Lower SoC constraint violation, SoC+kWhCharge:'...
                     num2str(kWhCharge + this.SoC)]);
             end
@@ -79,7 +87,7 @@ classdef Battery < handle
         end
         
         % Attempt to charge battery by nSteps
-        function chargeStep(this, stepCharge)
+        function chargeStep(this, stepCharge, valueOverNB)
             
             % Check for charge rate constraint violation:
             if stepCharge > -this.minDischargeStep
@@ -113,8 +121,29 @@ classdef Battery < handle
             % All constraints OK, so update charge in battery
             this.state = this.state + stepCharge;
             this.SoC = (this.state-1)*this.increment;
+            
+            % Also update total damage and total value'
+            this.cumulativeDamage = this.cumulativeDamage + ...
+                calcFracDegradation(this.cfg, this, this.state,...
+                -stepCharge);
+            
+            this.cumulativeValue = this.cumulativeValue + valueOverNB;
+            
+            if this.cumulativeDamage > 1.0
+                warning('battery cumulative damage exceeded 1.0');
+            end
+            
+            if this.cumulativeValue < 0.0
+                disp('CumulativeValue: ');
+                disp(this.cumulativeValue);
+                disp('CumulativeDamage: ');
+                disp(this.cumulativeDamage);
+                disp('ValueEst: ');
+                disp(this.cumulativeValue/this.cumulativeDamage);
+                warning('WARN: battery cumulative value negative');
+            end
         end
-
+        
         % Constrain kWh charge decision to batteries capability
         function ltdCharge = limitCharge(this, kWhCharge)
             
@@ -168,24 +197,29 @@ classdef Battery < handle
         end
         
         % Reset the SoC of battery to starting value (0.5xcapacity)
-        function reset(this, varargin)
-            if isempty(varargin)
-                if isequal(this.type, 'oso')
-                    this.state = floor((0.5*this.capacity)/this.increment) + 1;
-                    this.SoC = (this.state-1)*this.increment;
-                else
-                    this.SoC = 0.5*this.capacity;
-                end
-            elseif length(varargin) == 1
-                if isequal(this.type, 'oso')
-                    this.state = varargin{1};
-                    this.SoC = (this.state-1)*this.increment;
-                else
-                    this.SoC = varargin{1};
-                end
+        function reset(this)
+            if isequal(this.cfg.type, 'oso')
+                this.state = floor((0.5*this.capacity)/this.increment) + 1;
+                this.SoC = (this.state-1)*this.increment;
+                this.cumulativeDamage = this.eps;
+                this.cumulativeValue = 0;
             else
-                error('too many input arguments');
+                this.SoC = 0.5*this.capacity;
             end
+        end
+        
+        function randomReset(this)
+            if isequal(this.cfg.type, 'oso')
+                this.state = randsample(this.statesInt, 1);
+                this.SoC = (this.state-1)*this.increment;
+            else
+                this.SoC = rand(1,1).*(this.capacity - 0) + 0;
+            end
+        end
+        
+        % Return current estimate of the value of the battery
+        function value = Value(this)
+            value = this.cumulativeValue/this.cumulativeDamage;
         end
     end
 end

@@ -10,7 +10,7 @@
 
 function cfg = Config(pwd)
 
-cfg.type = 'oso';   % minMaxDemand
+cfg.type = 'oso';   % minMaxDemand, 'oso'
 
 rng(42);        % For repeatability
 
@@ -47,24 +47,24 @@ mkdir(cfg.sav.resultsDir);
 
 %% cfg.sim: Simulation Settings
 if isequal(cfg.type, 'minMaxDemand')
-    cfg.sim.batteryCapacityRatio = 0.10;% fraction of daily mean demand
-    cfg.sim.nCustomers = [1, 5]; %, 25];
-    cfg.sim.nAggregates = 2;
+    cfg.sim.batteryCapacityRatio = 0.10;  % fraction of daily mean demand
+    cfg.sim.nCustomers = [1, 5, 25, 125]; %, 25];
+    cfg.sim.nAggregates = 3;
     cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 else
-    cfg.sim.nInstances = 8;
+    cfg.sim.nInstances = 3;
     % Battery properties for Oso study only
-    cfg.sim.batteryCapacity = 2.0;
+    cfg.sim.batteryCapacity = 2.5;
     cfg.sim.batteryEtaC = 0.94;
     cfg.sim.batteryEtaD = 0.94;
-    cfg.sim.batteryCostPerKwhUsed = 0.1;    % $/kWh-used
     cfg.sim.minCostDiff = 1e-6;
 end
 cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
-cfg.sim.nDaysTest = 50*7;           % days to run simulation for
-cfg.sim.stepsPerHour = 2;           % Half-hourly data
+cfg.sim.nDaysTest = 38*7;     % days to run simulation for
+cfg.sim.stepsPerHour = 2;          % 5-minutely data
 cfg.sim.hoursPerDay = 24;
 cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
+cfg.sim.eps = 1e-6;                % Threshold for constraint checking
 
 % Horizon length, in intervals:
 cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
@@ -73,7 +73,7 @@ cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC', 'IMFC', 'PFFC'};
 
 %% cfg.fc: Forecast, and forecast training Settings
-cfg.fc.nDaysTrain = 50*7;           % days of historic demand to train on
+cfg.fc.nDaysTrain = 38*7;     % days of historic demand to train on
 cfg.fc.modelType = 'FFNN';          % {'RNN', 'MLR', 'RNN', '...'}
 
 % Seasonal period for NP forecast, in intervals
@@ -81,11 +81,11 @@ cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
 cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
-cfg.fc.nStart = 4;                  % No. initializations
+cfg.fc.nStart = 3;                  % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
 cfg.fc.mseEpochs = 4000;
-cfg.fc.maxTime = 30*60;             % Max seconds to train one NN
+cfg.fc.maxTime = 60*60;             % Max seconds to train one NN
 cfg.fc.nRecursive = 1;              % No. of recursive feedbacks for RNN
 cfg.fc.clipNegative = true;         % Prevent output fcasts from being -ve
 
@@ -94,10 +94,12 @@ cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
 
 % Forecast-free options
-cfg.fc.nTrainShuffles = 15;                    % # of shuffles to consider
-cfg.fc.nDaysSwap = floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
+cfg.fc.nTrainShuffles = 20;                    % # of shuffles to consider
+cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
 cfg.fc.nNodesFF = 50;                          % No. of nodes in FF ctrlr
 cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future?
+% How often to randomize SoC in FF example generation (to build robustness)
+cfg.fc.randomizeInterval = 5;
 
 
 %% cfg.opt: Optimization settings
@@ -110,10 +112,16 @@ if isequal(cfg.type, 'minMaxDemand')
 else
     cfg.opt.statesPerKwh = 8;         % For dynamic program
 end
-cfg.opt.knowDemandNow = false;    % Current demand known to optimizer?
+cfg.opt.knowDemandNow = true;    % Current demand known to optimizer?
 cfg.opt.setPointRecourse = false;  % Apply set point recourse?
 cfg.opt.suppressOutput = cfg.fc.suppressOutput;
 
+%% Battery Settings
+cfg.bat.damageModel = 'fixed';   % 'fixed', 'staticMultifactor', 'dynamicMultifactor'
+cfg.bat.nominalCycleLife = 1825; % 5yrs, 1 cycle (charge/discharge) per day
+cfg.bat.nominalDoD = 80;         % 10% - 90% cycle
+cfg.bat.nominalSoCav = 50;
+cfg.bat.maxLifeHours = 7*365.25*24; % 7yrs
 
 %% cfg.plt: Plotting Settings
 cfg.plt.visible = 'on';             % Whether to plot vizible output
@@ -157,5 +165,4 @@ end
 % Save a copy of this Config file to results directory
 copyfile([pwd filesep 'Config.m'], [cfg.sav.resultsDir filesep ...
     'thisConfig.m']);
-
 end

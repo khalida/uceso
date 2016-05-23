@@ -25,6 +25,12 @@ function [ runningPeak, exitFlag, forecastUsed, respVecs, featVecs, ...
 
 %% Initializations
 battery.reset();
+
+% Create zero-size battery for case of sim with no battery
+if isfield(runControl, 'NB') && runControl.NB
+    battery = Battery(cfg, 0.0);
+end
+        
 nIdxs = size(godCast, 1);
 daysPassed = 0;
 
@@ -60,9 +66,19 @@ for idx = 1:nIdxs;
     waitbar(idx/nIdxs, h);
     demandNow = demand(idx);
     
+    if isfield(runControl, 'randomizeInterval')
+        if mod(idx, runControl.randomizeInterval) == 0
+            battery.randomReset();
+        end
+    end
+    
     if runControl.godCast
         forecast = godCast(idx, :)';
         titleString = 'godCast';
+        
+    elseif isfield(runControl, 'NB') && runControl.NB
+        forecast = zeros(size(godCast(idx, :)'));
+        titleString = 'NB';
         
     elseif isfield(runControl, 'modelCast') && runControl.modelCast
         forecast = godCast(idx, :)';
@@ -96,7 +112,7 @@ for idx = 1:nIdxs;
                 error('Selected cfg.fc.modelType not implemented');
         end
         
-        forecast = forecastHandle(cfg, trainedModel, demandDelays);
+        forecast = forecastHandle(cfg, trainedModel.demand, demandDelays);
     end
     
     % Error-checking:
