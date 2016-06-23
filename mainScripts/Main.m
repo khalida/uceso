@@ -1,5 +1,6 @@
-%% Main Script for UCESO (Unprincipled Controllers for Energy Storage
-% Optimization).
+%% Main Script for UCESO
+%  (Unprincipled Controllers for Energy Storage
+%  Optimization).
 
 %% (Tidy up &) Load Configuration options
 clearvars; close all; clc;

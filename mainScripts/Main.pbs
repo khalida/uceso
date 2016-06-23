@@ -1,0 +1,13 @@
+#!/bin/bash
+#PBS -N uceso_mmd
+#PBS -A pMelb0247
+#PBS -q serial
+#PBS -l nodes=1:ppn=12
+#PBS -l walltime=30:00:00
+#PBS -l pmem=2000mb
+#PBS -m abe
+#PBS -M khalid.a.abdulla@gmail.com
+
+module load matlab/R2014a
+cd $PBS_O_WORKDIR
+matlab -nodisplay -nosplash < Main.m

@@ -1,21 +1,21 @@
-%%  ==== Forecast-free controller for minimizing peak Demand ====
+%%  ==== UCESO: Unprincipled Controllers for Energy Storage Operation ====
 %% Global Config File
 
 %% Save all configuration options in 'cfg' structure, divided into
 % cfg.fc:   for forecast settings
-% cfg.opt:  for optimisation settings
+% cfg.opt:  for optimization settings
 % cfg.sim:  for simulation settings
 % cfg.plt:  for plotting settings
 % cfg.sav:  for saving settings
 
 function cfg = Config(pwd)
 
-cfg.type = 'oso';   % minMaxDemand, 'oso'
+cfg.type = 'minMaxDemand';   % minMaxDemand, 'oso'
 
 rng(42);        % For repeatability
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
-nProcAvail = 4;
+nProcAvail = 12;
 
 % Location of input data files
 [parentFold, ~, ~] = fileparts(pwd);
@@ -38,17 +38,19 @@ timeString = [num2str(timeStart(1)), '_',...
     num2str(timeStart(5),'%0.2d')];
 
 if isequal(cfg.type, 'minMaxDemand')
-    cfg.sav.resultsDir = [parentFold filesep 'resultsMmd' filesep timeString];
+    cfg.sav.resultsDir = [parentFold filesep 'resultsMmd' filesep...
+        timeString];
 else
-    cfg.sav.resultsDir = [parentFold filesep 'resultsOso' filesep timeString];
+    cfg.sav.resultsDir = [parentFold filesep 'resultsOso' filesep...
+        timeString];
 end
 mkdir(cfg.sav.resultsDir);
 
 
 %% cfg.sim: Simulation Settings
 if isequal(cfg.type, 'minMaxDemand')
-    cfg.sim.batteryCapacityRatio = 0.10;  % fraction of daily mean demand
-    cfg.sim.nCustomers = [1, 5, 25, 125]; %, 25];
+    cfg.sim.batteryCapacityRatio = 0.05;  % fraction of daily mean demand
+    cfg.sim.nCustomers = [1, 10, 100, 1000];
     cfg.sim.nAggregates = 3;
     cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 else
@@ -61,11 +63,11 @@ else
     cfg.sim.minCostDiff = 1e-6;
 end
 cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
-cfg.sim.nDaysTest = 38*7;     % days to run simulation for
-cfg.sim.stepsPerHour = 2;          % 5-minutely data
+cfg.sim.nDaysTest = 38*7;           % days to run simulation for
+cfg.sim.stepsPerHour = 2;           % 30-minutely data
 cfg.sim.hoursPerDay = 24;
 cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
-cfg.sim.eps = 1e-6;                % Threshold for constraint checking
+cfg.sim.eps = 1e-4;                 % Threshold for constraint checking
 
 % Horizon length, in intervals:
 cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
@@ -75,29 +77,29 @@ cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC', 'IMFC', 'PFFC'};
 
 %% cfg.fc: Forecast, and forecast training Settings
 cfg.fc.nDaysTrain = 38*7;     % days of historic demand to train on
-cfg.fc.modelType = 'FFNN';          % {'RNN', 'MLR', 'RNN', '...'}
+cfg.fc.modelType = 'FFNN';    % {'RNN', 'MLR', 'RNN', '...'}
 
 % Seasonal period for NP forecast, in intervals
 cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
 cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
-cfg.fc.nStart = 4;                  % No. initializations
+cfg.fc.nStart = 3;                  % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
-cfg.fc.mseEpochs = 4000;
-cfg.fc.maxTime = 30*60;             % Max seconds to train one NN
+cfg.fc.mseEpochs = 1000;
+cfg.fc.maxTime = 45*60;             % Max seconds to train one NN
 cfg.fc.nRecursive = 1;              % No. of recursive feedbacks for RNN
 cfg.fc.clipNegative = true;         % Prevent output fcasts from being -ve
 
-cfg.fc.perfDiffThresh = 0.05;           % Init. performance differences
+cfg.fc.perfDiffThresh = 0.05;           % Performance diff to notify
 cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
 
 % Forecast-free options
-cfg.fc.nTrainShuffles = 20;                    % # of shuffles to consider
-cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
-cfg.fc.nNodesFF = 50;                          % No. of nodes in FF ctrlr
+cfg.fc.nTrainShuffles = 40;                    % # of shuffles to consider
+cfg.fc.nDaysSwap = floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
+cfg.fc.nNodesFF = 50;                          % No. of nodes in FF ctrler
 cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future?
 % How often to randomize SoC in FF example generation (to build robustness)
 cfg.fc.randomizeInterval = 5;
@@ -113,14 +115,14 @@ if isequal(cfg.type, 'minMaxDemand')
 else
     cfg.opt.statesPerKwh = 8;         % For dynamic program
 end
-cfg.opt.knowDemandNow = true;    % Current demand known to optimizer?
-cfg.opt.setPointRecourse = false;  % Apply set point recourse?
+cfg.opt.knowDemandNow = false;        % Current demand known to optimizer?
+cfg.opt.setPointRecourse = true;      % Apply set point recourse?
 cfg.opt.suppressOutput = cfg.fc.suppressOutput;
 
 %% Battery Settings
-cfg.bat.damageModel = 'fixed';   % 'fixed', 'staticMultifactor', 'dynamicMultifactor'
-cfg.bat.nominalCycleLife = 1825; % 5yrs, 1 cycle (charge/discharge) per day
-cfg.bat.nominalDoD = 80;         % 10% - 90% cycle
+cfg.bat.damageModel = 'fixed';      % {'fixed', 'staticMultifactor', 'dynamicMultifactor'}
+cfg.bat.nominalCycleLife = 1825;    % 5yrs, 1 cycle (charge/discharge) per day
+cfg.bat.nominalDoD = 80;            % 10% - 90% cycle
 cfg.bat.nominalSoCav = 50;
 cfg.bat.maxLifeHours = 7*365.25*24; % 7yrs
 
@@ -128,7 +130,8 @@ cfg.bat.maxLifeHours = 7*365.25*24; % 7yrs
 cfg.plt.visible = 'on';             % Whether to plot vizible output
 
 
-%% Produce Derived values (no new inputs below)
+%% Produce Derived values (no new inputs below this line)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 cfg.sim.nProc = min(cfg.sim.nInstances, nProcAvail);
 cfg.sim.nMethods = length(cfg.sim.methodList);
 
@@ -163,7 +166,14 @@ else
         num2str(cfg.opt.statesPerKwh) 'spk.mat'];
 end
 
-% Save a copy of this Config file to results directory
+%% Save a copy of this Config file to results director
+% (unless already exists)
+
+if ~exist([cfg.sav.resultsDir filesep 'thisConfig.m']) %#ok<EXIST>
 copyfile([pwd filesep 'Config.m'], [cfg.sav.resultsDir filesep ...
     'thisConfig.m']);
+else
+    warning('thisConfig.m not created as location was taken');
+end
+
 end

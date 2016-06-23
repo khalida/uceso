@@ -137,8 +137,8 @@ else
     end
     
     % Optimization running options
-    options = optimoptions(@linprog,'Display', 'off', ...
-        'Algorithm', 'dual-simplex');
+    options = optimoptions(@linprog,'Display', 'off'); %, ...
+	%        'Algorithm', 'dual-simplex');
     
     % options.MaxIter = ceil(cfg.opt.iterationFactor*options.MaxIter);
     
