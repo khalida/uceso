@@ -181,7 +181,7 @@ for idx = 1:nIdxs;
         energyToBatteryNow = battery.limitCharge(energyToBatteryNow);
     end
     
-    %% Plot first horizon to assis with debugging
+    %% Plot first horizon to assist with debugging
     if ~cfg.opt.suppressOutput && idx == 1
         figure();
         plot([forecast, godCast(idx, :)', ...

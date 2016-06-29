@@ -10,12 +10,11 @@
 
 function cfg = Config(pwd)
 
-cfg.type = 'minMaxDemand';   % minMaxDemand, 'oso'
-
+cfg.type = 'oso';   % minMaxDemand, 'oso'
 rng(42);        % For repeatability
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
-nProcAvail = 12;
+nProcAvail = 4;
 
 % Location of input data files
 [parentFold, ~, ~] = fileparts(pwd);
@@ -50,8 +49,8 @@ mkdir(cfg.sav.resultsDir);
 %% cfg.sim: Simulation Settings
 if isequal(cfg.type, 'minMaxDemand')
     cfg.sim.batteryCapacityRatio = 0.05;  % fraction of daily mean demand
-    cfg.sim.nCustomers = [1, 10, 100, 1000];
-    cfg.sim.nAggregates = 3;
+    cfg.sim.nCustomers = [1, 5, 25, 125];
+    cfg.sim.nAggregates = 2;
     cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 else
     cfg.sim.nInstances = 3;
@@ -66,8 +65,8 @@ cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
 cfg.sim.nDaysTest = 38*7;           % days to run simulation for
 cfg.sim.stepsPerHour = 2;           % 30-minutely data
 cfg.sim.hoursPerDay = 24;
-cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
 cfg.sim.eps = 1e-4;                 % Threshold for constraint checking
+cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
 
 % Horizon length, in intervals:
 cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
@@ -92,17 +91,17 @@ cfg.fc.maxTime = 45*60;             % Max seconds to train one NN
 cfg.fc.nRecursive = 1;              % No. of recursive feedbacks for RNN
 cfg.fc.clipNegative = true;         % Prevent output fcasts from being -ve
 
-cfg.fc.perfDiffThresh = 0.05;           % Performance diff to notify
+cfg.fc.perfDiffThresh = 0.05;           % Performance diff. to notify of
 cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
 
 % Forecast-free options
 cfg.fc.nTrainShuffles = 40;                    % # of shuffles to consider
-cfg.fc.nDaysSwap = floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
+cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
 cfg.fc.nNodesFF = 50;                          % No. of nodes in FF ctrler
-cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future?
+cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
-cfg.fc.randomizeInterval = 5;
+cfg.fc.randomizeInterval = 7;
 
 
 %% cfg.opt: Optimization settings
@@ -165,6 +164,7 @@ else
         num2str(cfg.sim.batteryCapacity) 'kWh_' ...
         num2str(cfg.opt.statesPerKwh) 'spk.mat'];
 end
+
 
 %% Save a copy of this Config file to results director
 % (unless already exists)

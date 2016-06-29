@@ -1,7 +1,7 @@
-%% Script to test the performance of an Unprincipled Controller, when
-% Trained using output from a principled controller (in our application)
+%% Script to test the performance of an Forecast-free Controller, when
+% Trained using output from an exact controller (in our application)
 
-%% minMaxDemand controller has been implemented in controllerOptimizer:
+%% minMaxDemand controller has been implemented in mpcController:
 %[ runningPeak, exitFlag, forecastUsed, respVecs, featVecs, ...
 %    b0_raw ] = mpcController(cfg, trainedModel, godCast, demand, ...
 %    demandDelays, battery, runControl)
@@ -13,12 +13,12 @@
 % denmand:          Demand time series on which to run model [kWh]
 % demandDelays:     Initial nLag lags of demand [kWh]
 % battery:          Structure containing information about the batt
-% runControl:       Running options
+% runControl:       Running options specific to that case/method
 
 
 %% oso controller implemented in controllerDp.m
 % [ totalCost, chargeProfile, totalDamageCost, demForecastUsed,...
-%    pvForecastUsed, respVecs, featVecs, bestCTG] = mpcControllerDp(cfg, ...
+%    pvForecastUsed, respVecs, featVecs, bestCTG, imp, exp] = mpcControllerDp(cfg, ...
 %    trainedModel, demGodCast, demand, pvGodCast, pv, demandDelays,...
 %    pvDelays, battery, runControl)
 
@@ -29,7 +29,7 @@
 % demand|pv:        Demand and PV time series on which to run mdoel [kWh]
 % demand|pv|Delays: Initial nLag lags of demand and pv [kWh]
 % battery:          Object representing the battery
-% runControl:       Running options
+% runControl:       Running options specific to that case/method
 
 
 %% 0) Tidy up & Load functions
@@ -47,19 +47,19 @@ cfg = Config(pwd);
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
-noiseMagnitudes = sglMagnitude.*[0, 0.5, 1, 1.5]; % ];
-tsTrainLengths = [8, 16]; 
-tsTestLength = 16*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+noiseMagnitudes = sglMagnitude.*[0, 0.25, 0.5, 1.0, 1.5, 2];   % several noise levels to run over
+tsTrainLengths = [8, 8, 16, 16, 32, 32];                           % several train lengtsh to run over
+tsTestLength = 8*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 
 %% Initialize results vectors
 % NB: performance is Peak reduction ratio for minMaxDemand (high good), for
 % oso it is the totalCost (low good)
-perf_UC = zeros(length(tsTrainLengths), length(noiseMagnitudes));
-perf_exactNP = perf_UC;
-perf_exactMC = perf_UC;
-perf_SP = perf_UC;
-perf_exactGodCast = perf_UC;
+perf_FF = zeros(length(tsTrainLengths), length(noiseMagnitudes));
+perf_exactNP = perf_FF;
+perf_exactMC = perf_FF;
+perf_SP = perf_FF;
+perf_exactGodCast = perf_FF;
 
 estNoiseRatio = zeros(length(tsTrainLengths), length(noiseMagnitudes));
 
@@ -69,10 +69,10 @@ for tsTrIdx = 1:length(tsTrainLengths)
         cfg.sim.billingPeriodDays;
     
     parfor noiseIdx = 1:length(noiseMagnitudes)
-%     for noiseIdx = 1:length(noiseMagnitudes)
+        %     for noiseIdx = 1:length(noiseMagnitudes)
         
         % Clear variables to avoid parfor warnings
-        runControl = [];        
+        runControl = [];
         ax = cell(5,1);
         tsFig = [];
         timeSeriesDataPv = [];
@@ -121,6 +121,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         trainDemandSeries = timeSeriesDataDem(1:tsTrainLength);
         testDemandSeries = timeSeriesDataDem((length(trainDemandSeries)...
             +1):end);
+        
         if length(testDemandSeries) ~= tsTestLength
             error('Demand Test time series length not as expected');
         end
@@ -129,6 +130,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
             trainPvSeries = timeSeriesDataPv(1:tsTrainLength);
             testPvSeries = timeSeriesDataPv((length(trainDemandSeries)...
                 +1):end);
+            
             if length(testPvSeries) ~= tsTestLength
                 error('PV Test time series length not as expected');
             end
@@ -136,7 +138,6 @@ for tsTrIdx = 1:length(tsTrainLengths)
         
         timeSeriesDataDem = timeSeriesDataDem + 2.*circshift(...
             timeSeriesDataDem, [floor(cfg.fc.seasonalPeriod/2),0]);
-        
         
         noiseFreeTsDem = noisySine(sglMagnitude/2, cfg.fc.seasonalPeriod,...
             0, tsTrainLength + tsTestLength);
@@ -167,7 +168,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         end
         
         %% 3a) Run exact controller on training data, with godCast
-        % to get training data for UC
+        % to get training data for FF
         godCastTrainDem = createGodCast(trainDemandData, cfg.sim.horizon);
         
         if isequal(cfg.type, 'oso')
@@ -182,11 +183,11 @@ for tsTrIdx = 1:length(tsTrainLengths)
         runControl.modelCast = false;
         runControl.forecastFree = false;
         runControl.NB = false;
-        runControl.randomizeInterval = cfg.fc.randomizeInterval;  
+        runControl.randomizeInterval = cfg.fc.randomizeInterval;
         
         if isequal(cfg.type, 'oso')
             % How often to randomise storage SoC; train in robustness
-            runControl.randomizeInterval = cfg.fc.randomizeInterval;  
+            runControl.randomizeInterval = cfg.fc.randomizeInterval;
             
             [ ~, ~, ~, ~, ~, responseGc, featureVectorGc, bestCTG, imp,...
                 exp] = mpcControllerDp(cfg, [], godCastTrainDem,...
@@ -200,7 +201,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         
         runControl = rmfield(runControl, 'randomizeInterval');
         
-        %% 4a) Divide data into training/testing and train UC
+        %% 4a) Divide data into training/testing and train FF
         nObsTrain = size(featureVectorGc, 2);
         randIdxs = 1:nObsTrain; % randIdxs = randperm(nObsTrain);
         trainIdxs = randIdxs(1:ceil(nObsTrain*cfg.fc.trainRatio));
@@ -213,9 +214,9 @@ for tsTrIdx = 1:length(tsTrainLengths)
         respVecsVal = responseGc(:, testIdxs);
         
         
-        %% 4b) Train UP controller
-        disp('=== Train UP controller ===');
-        unprincipledController = trainFfnnMultiInit(cfg, featVecsTrain,...
+        %% 4b) Train FF controller
+        disp('=== Train FF controller ===');
+        ffController = trainFfnnMultiInit(cfg, featVecsTrain,...
             respVecsTrain);
         
         
@@ -224,9 +225,9 @@ for tsTrIdx = 1:length(tsTrainLengths)
         % optimiser, nothing to do with if controller works!)
         if plotEachTrainLength
             figure();
-            estimatedRespVecsVal = unprincipledController(featVecsVal);
+            estimatedRespVecsVal = ffController(featVecsVal);
             plotregression(respVecsVal, estimatedRespVecsVal);
-            title('Train Unprincipled Controller i/o mapping perf.');
+            title('Trained FF Controller i/o mapping perf.');
             saveas(gcf, [cfg.sav.resultsDir filesep 'reg_nseIdx'...
                 num2str(noiseIdx) 'tsIdx' num2str(tsTrIdx) '.fig']);
         end
@@ -355,7 +356,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         end
         
         estNoiseRatio(tsTrIdx, noiseIdx) = sqrt(mse(godCastTestDem, ...
-                    modelCastDem))/rms(modelCastDem(:));
+            modelCastDem))/rms(modelCastDem(:));
         
         %% 5c) Exact controller with NP forecast
         runControl.godCast = false;
@@ -375,7 +376,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
                 respVecNp, featVecNp, ~, imp, exp] = mpcControllerDp(cfg, [],...
                 godCastTestDem, testDemandData, godCastTestPv, testPvData,...
                 demandDelays, pvDelays, battery, runControl);
-           
+            
             perf_exactNP(tsTrIdx, noiseIdx) = totalCost - totalDamageCost;
             
         else
@@ -405,35 +406,35 @@ for tsTrIdx = 1:length(tsTrainLengths)
             end
         end
         
-    %% 5d) Unprincipled controller
-    runControl.godCast = false;
+        %% 5d) Forecast-Free controller
+        runControl.godCast = false;
         runControl.naivePeriodic = false;
         runControl.setPoint = false;
         runControl.modelCast = false;
         runControl.forecastFree = true;
         runControl.NB = false;
         
-        disp(['=== SIM: UP controller, sees future: ',...
+        disp(['=== SIM: FF controller, sees future: ',...
             num2str(cfg.fc.knowFutureFF), ' ===']);
         
         if isequal(cfg.type, 'oso')
             % Run OSO model
-            [ totalCost, b0_Up_raw, totalDamageCost, ~, ~, ...
+            [ totalCost, b0_Ff_raw, totalDamageCost, ~, ~, ...
                 respVecUp, featVecUp, ~, imp, exp] = mpcControllerDp(cfg, ...
-                unprincipledController, godCastTestDem, testDemandData,...
+                ffController, godCastTestDem, testDemandData,...
                 godCastTestPv, testPvData, demandDelays, pvDelays,...
                 battery, runControl);
-
-            perf_UC(tsTrIdx, noiseIdx) = totalCost - totalDamageCost;
+            
+            perf_FF(tsTrIdx, noiseIdx) = totalCost - totalDamageCost;
             
         else
             % Run minMaxDemand model
-            [ runningPeak, ~, ~, respVecUp, featVecUp, b0_Up_raw ] = ...
-                mpcController(cfg, unprincipledController, ...
+            [ runningPeak, ~, ~, respVecUp, featVecUp, b0_Ff_raw ] = ...
+                mpcController(cfg, ffController, ...
                 godCastTestDem, testDemandData, demandDelays, battery, ...
                 runControl);
             
-            perf_UC(tsTrIdx, noiseIdx) = extractSimulationResults(...
+            perf_FF(tsTrIdx, noiseIdx) = extractSimulationResults(...
                 runningPeak(idxsCommon)', testDemandSeries(idxsCommon), ...
                 cfg.sim.horizon*cfg.sim.billingPeriodDays);
         end
@@ -445,13 +446,13 @@ for tsTrIdx = 1:length(tsTrainLengths)
                 ax{plotIdx} = plotMpcTseries(tsFig, plotIdx, ...
                     testDemandSeries(idxsCommon), runningPeak(idxsCommon),...
                     avgLoad, featVecUp(cfg.fc.nLags+1,idxsCommon), battery,...
-                    'Unprinc ctrl, NP fcast', nObsTrain);
+                    'Fcast-free ctrl', nObsTrain);
                 
             else
                 ax{plotIdx} = plotDpTseries(tsFig, plotIdx, ...
                     testDemandData, testPvData, ...
                     featVecUp(end-1,:), battery, ...
-                    'Unprinc ctrl, NP fcast', nObsTrain, imp, exp);
+                    'Fcast-free ctrl', nObsTrain, imp, exp);
             end
         end
         
@@ -467,7 +468,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         if isequal(cfg.type, 'oso')
             % Run OSO model
             [ totalCost, ~, totalDamageCost, ~, ~, ~, featVecSp, ~,...
-                imp, exp]= mpcControllerDp(cfg, unprincipledController, ...
+                imp, exp]= mpcControllerDp(cfg, ffController, ...
                 godCastTestDem, testDemandData, godCastTestPv, ...
                 testPvData, demandDelays, pvDelays, battery, runControl);
             
@@ -507,7 +508,7 @@ for tsTrIdx = 1:length(tsTrainLengths)
         end
         
         disp(['Completed run with ' num2str(nObsTrain) ' data points']);
-        disp(['and ' num2str(unprincipledController.numWeightElements) ...
+        disp(['and ' num2str(ffController.numWeightElements) ...
             ' weighted elements']);
     end
 end
@@ -534,10 +535,10 @@ for idx = 1:length(tsTrainLengths)
     subplot(length(tsTrainLengths), 2, 2*idx-1);
     plot((noiseMagnitudes./sglMagnitude)', [perf_exactNP(idx, :);...
         perf_exactMC(idx, :); perf_exactGodCast(idx, :);...
-        perf_UC(idx, :); perf_SP(idx, :)]', '.-');
+        perf_FF(idx, :); perf_SP(idx, :)]', '.-');
     
     legend({'Exact Controller, NP', 'Excat controller, modelCast', ...
-        'Exact Controller, God Cast', 'Unprincipled Controller', ...
+        'Exact Controller, God Cast', 'Fcast free Controller', ...
         'SP Controller'});
     
     grid on;
@@ -554,7 +555,7 @@ for idx = 1:length(tsTrainLengths)
         [perf_exactNP(idx, :)./perf_exactGodCast(idx, :);...
         perf_exactMC(idx, :)./perf_exactGodCast(idx, :); ...
         perf_exactGodCast(idx, :)./perf_exactGodCast(idx, :);...
-        perf_UC(idx, :)./perf_exactGodCast(idx, :); ...
+        perf_FF(idx, :)./perf_exactGodCast(idx, :); ...
         perf_SP(idx, :)./perf_exactGodCast(idx, :)]','.-');
     
     if isequal(cfg.type, 'oso')
@@ -568,10 +569,10 @@ end
 
 % Save the above figure:
 print(fig_1, '-dpdf', [cfg.sav.resultsDir filesep ...
-    'TestUnprincipledControllerResults.pdf']);
+    'TestFcastFreeControllerResults.pdf']);
 
 fig_2 = figure();
-plot((noiseMagnitudes./sglMagnitude)', estNoiseRatio, '.');
+plot((noiseMagnitudes./sglMagnitude)', estNoiseRatio', '.');
 grid on;
 refline(1, 0);
 xlabel('Target noise-to-signal ratio');
@@ -582,7 +583,7 @@ print(fig_2, '-dpdf', [cfg.sav.resultsDir filesep ...
 
 
 % And the data:
-save([cfg.sav.resultsDir filesep 'TestUnpCtrlrResults.mat'], '-v7.3');
+save([cfg.sav.resultsDir filesep 'TestFcastFreeResults.mat'], '-v7.3');
 
 % figure();
 % plot([respGcTest(1, 1:length(respVecUp)); ...

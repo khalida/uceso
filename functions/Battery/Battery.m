@@ -52,9 +52,11 @@ classdef Battery < handle
             end
         end
         
-        % Attempt to put kWh into battery
+        % Attempt to put kWh into battery: minMaxDemand opt only
         function chargeBy(this, kWhCharge)
-            
+            if isequal(this.cfg.type, 'oso')
+                error('Cannot charge by continuous value for oso opt');
+            end
             % Check for charge rate constraint violation:
             if kWhCharge > this.maxChargeEnergy + this.eps
                 error(['Charge constraint violated, kWhCharge:'...
@@ -88,6 +90,14 @@ classdef Battery < handle
         
         % Attempt to charge battery by nSteps
         function chargeStep(this, stepCharge, valueOverNB)
+            if isequal(this.cfg.type, 'minMaxDemand')
+                error('Cannot charge by step for minMaxDemand opt');
+            end
+            
+            % Check for step not being integer
+            if ~isWholeNumber(stepCharge)
+                error('stepCharge must be an integer');
+            end
             
             % Check for charge rate constraint violation:
             if stepCharge > -this.minDischargeStep
@@ -146,6 +156,9 @@ classdef Battery < handle
         
         % Constrain kWh charge decision to batteries capability
         function ltdCharge = limitCharge(this, kWhCharge)
+            if isequal(this.cfg.type, 'oso')
+                error('Cannot charge limit continuous value for oso opt');
+            end
             
             % Initially set value to requested charge value
             ltdCharge = kWhCharge;
@@ -172,6 +185,15 @@ classdef Battery < handle
         end
         
         function ltdStep = limitChargeStep(this, chargeStep)
+            if isequal(this.cfg.type, 'minMaxDemand')
+                error('Cannot limit charge step for minMaxDemand opt');
+            end
+            
+            % Check for step not being integer
+            if ~isWholeNumber(chargeStep)
+                error('stepCharge must be an integer');
+            end
+            
             % Initially set value to requested charge value
             ltdStep = chargeStep;
             
@@ -219,6 +241,9 @@ classdef Battery < handle
         
         % Return current estimate of the value of the battery
         function value = Value(this)
+            if isequal(this.cfg.type, 'minMaxDemand')
+                error('Cannot return value for minMaxDemand opt');
+            end
             value = this.cumulativeValue/this.cumulativeDamage;
         end
     end

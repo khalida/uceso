@@ -8,7 +8,7 @@ function [ model ] = trainForecastFreeController( cfg,  demandDataTrain,...
 % cfg:              Structure of configuration parameters (including train options)
 % demandDataTrain:  Vector of historic demand values [nObs x 1]
 % varargin:         If 'oso' problem solved, pvDataTrain will also be
-% passed in
+%                       passed in
 
 %% OUPTPUTS:
 % model:    MATLAB NN network model of FF controller
@@ -23,12 +23,13 @@ end
 
 
 %% Seperate data into initialization (nLags) and training
-initIdxs = 1:cfg.fc.nLags;
-demandDelays = demandDataTrain(initIdxs);
-demandDataTrainOnly = demandDataTrain((max(initIdxs)+1):end);
+cfg.sim.initIdxs = 1:cfg.fc.nLags;
+cfg.sim.trainOnlyIdxs = (max(cfg.sim.initIdxs)+1):length(demandDataTrain);
+demandDelays = demandDataTrain(cfg.sim.initIdxs);
+demandDataTrainOnly = demandDataTrain(cfg.sim.trainOnlyIdxs);
 if isequal(cfg.type, 'oso')
-    pvDelays = pvDataTrain(initIdxs);
-    pvDataTrainOnly = pvDataTrain((max(initIdxs)+1):end);
+    pvDelays = pvDataTrain(cfg.sim.initIdxs);
+    pvDataTrainOnly = pvDataTrain((max(cfg.sim.initIdxs)+1):end);
 end
 
 
@@ -44,9 +45,11 @@ end
 
 %% Set-up parameters for on-line simulation
 if isequal(cfg.type, 'oso')
+    % Battery size fixed
     battery = Battery(cfg, cfg.sim.batteryCapacity);
 else
-    meanDemand = mean(demandDataTrainOnly);
+    % Battery size depends on demand of the aggregation considered
+    meanDemand = mean(demandDataTrain);
     battery = Battery(cfg, meanDemand*cfg.sim.batteryCapacityRatio*...
         cfg.sim.stepsPerDay);
 end
@@ -94,13 +97,13 @@ for eachShuffle = 1:cfg.fc.nTrainShuffles
     end
     
     % Recompute the demand delays, godCast, and training data only
-    demandDelays = newDemandDataTrain(initIdxs);
-    demandDataTrainOnly = newDemandDataTrain((max(initIdxs)+1):end);
+    demandDelays = newDemandDataTrain(cfg.sim.initIdxs);
+    demandDataTrainOnly = newDemandDataTrain((max(cfg.sim.initIdxs)+1):end);
     demGodCast = createGodCast(demandDataTrainOnly, cfg.sim.horizon);
     
     % demandDataTrainOnly = demandDataTrainOnly(1:nTrainIdxs);
     if nTrainIdxs ~= size(demGodCast, 1);
-        error('Gotc inconsistent No. of training intervals from godCast');
+        error('Got inconsistent No. of training intervals from godCast');
     end
     
     if isequal(cfg.type, 'oso')
@@ -118,9 +121,13 @@ for eachShuffle = 1:cfg.fc.nTrainShuffles
         end
         
         % Recompute the demand delays, godCast, and training data only
-        pvDelays = newPvDataTrain(initIdxs);
-        pvDataTrainOnly = newPvDataTrain((max(initIdxs)+1):end);
+        pvDelays = newPvDataTrain(cfg.sim.initIdxs);
+        pvDataTrainOnly = newPvDataTrain((max(cfg.sim.initIdxs)+1):end);
         pvGodCast = createGodCast(pvDataTrainOnly, cfg.sim.horizon);
+        
+        if nTrainIdxs ~= size(demGodCast, 1);
+            error('Got inconsistent No. of train intervals from godCast');
+        end
         
         [ ~, ~, ~, ~, ~, respVecs, featVecs, ~] = mpcControllerDp(cfg, ...
             [], demGodCast, demandDataTrainOnly, pvGodCast, ...
@@ -140,7 +147,7 @@ for eachShuffle = 1:cfg.fc.nTrainShuffles
     disp(eachShuffle);
 end
 
-%% Train forecast-free RF model based on examples generated
+%% Train forecast-free model based on examples generated
 model = generateForecastFreeController(cfg, allFeatVecs, allRespVecs);
 
 end

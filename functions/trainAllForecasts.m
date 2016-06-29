@@ -9,6 +9,7 @@ function [ trainedModels, trainTime ] = trainAllForecasts(cfg, dataTrain)
 
 %% OUTPUTS:
 % trainedModels:    Trained forecast and forecast-free controller models
+%                           in cell array.
 % trainTime:        Time taken for training
 
 tic;
@@ -98,7 +99,8 @@ parfor instance = 1:cfg.sim.nInstances
         disp([cfg.sim.methodList{methodTypeIdx} ' training done!']);
     end
     
-    % save temporary cellArray of models to the full array:
+    % save temporary cellArray of models to the full array
+    % (avoid parfor complaints).
     trainedModels(instance, :) = tempModels;
     timeTaken(instance, :) = tempTimeTaken;
     

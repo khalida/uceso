@@ -38,17 +38,17 @@ else
     smallestExitFlag = cell(cfg.sim.nInstances, 1);
     meanKWhs = zeros(cfg.sim.nInstances, 1);
     lossTestResultsDemand = cell(cfg.sim.nInstances, 1);
-    noiseSglRatio = cell(cfg.sim.nInstances, 1);
+    noiseSglRatioDem = cell(cfg.sim.nInstances, 1);
     featureVectorsFF = cell(cfg.sim.nInstances, 1);
     featureVectors = cell(cfg.sim.nInstances, 1);
     
     for instance = 1:cfg.sim.nInstances
-        meanKWhs(instance) = mean(data.demand(:, instance));
+        meanKWhs(instance) = data.meanTrainKwhs(instance);
         peakReductions{instance} = zeros(cfg.sim.nMethods,1);
         peakPowers{instance} = zeros(cfg.sim.nMethods,1);
         smallestExitFlag{instance} = zeros(cfg.sim.nMethods,1);
         lossTestResultsDemand{instance} = zeros(cfg.sim.nMethods, 1);
-        noiseSglRatio{instance} = zeros(cfg.sim.nMethods, 1);
+        noiseSglRatioDem{instance} = zeros(cfg.sim.nMethods, 1);
     end
 end
 
@@ -121,7 +121,8 @@ parfor instance = 1:cfg.sim.nInstances
                 [ totalCost{instance}(methodType,1), ...
                     storageProfile{instance}(methodType,:), ...
                     totalDamageCost{instance}(methodType,1), ...
-                    demForecastUsed, pvForecastUsed, ~, ~, ~] = ...
+                    demForecastUsed, pvForecastUsed, ~, ...
+                    featureVectorsFF{instance}, ~, ~, ~] = ...
                     mpcControllerDp(cfg, trainedModels{instance, ...
                     methodType}, godCastDem, demandDataTest, godCastPv,...
                     pvDataTest, demandDelays,...
@@ -137,11 +138,12 @@ parfor instance = 1:cfg.sim.nInstances
         else
             %% Normal forecast-driven or set-point controller
             
-            % Check for godCast or naivePeriodic
+            % Check for godCast or naivePeriodic, No Battery etc.
             runControl.naivePeriodic = strcmp(thisMethodString, 'NPFC');
             runControl.godCast = strcmp(thisMethodString, 'PFFC');
             runControl.setPoint = strcmp(thisMethodString, 'SP');
             runControl.forecastFree = false;
+            runControl.NB = strcmp(thisMethodString, 'NB');
             
             % If method is set-point then show it current demand
             if(runControl.setPoint)
@@ -149,7 +151,7 @@ parfor instance = 1:cfg.sim.nInstances
             end
             
             if isequal(cfg.type, 'oso')
-                runControl.NB = strcmp(thisMethodString, 'NB');
+
                 [ totalCost{instance}(methodType,1), ...
                     storageProfile{instance}(methodType,:), ...
                     totalDamageCost{instance}(methodType,1), ...
@@ -159,7 +161,6 @@ parfor instance = 1:cfg.sim.nInstances
                     pvDataTest, demandDelays,...
                     pvDelays, battery, runControl);
             else
-                runControl.NB = strcmp(thisMethodString, 'NB');
                 [runningPeak, exitFlag, demForecastUsed, ~,...
                     featureVectors{instance}, ~] = mpcController(cfg, ...
                     trainedModels{instance, methodType}, godCastDem,...
@@ -168,7 +169,8 @@ parfor instance = 1:cfg.sim.nInstances
         end
         
         if isequal(cfg.type, 'oso')
-            % Extract oso sim results
+            % Extract oso sim results (NB: this still needs to be
+            % implemented!)
         else
             % Extract minMaxDemand sim results
             lastIdxCommon = length(runningPeak) - mod(length(runningPeak), ...
@@ -204,7 +206,7 @@ parfor instance = 1:cfg.sim.nInstances
                 allDemFcs{instance}{methodType} = demForecastUsed;
                 allPvFcs{instance}{methodType} = pvForecastUsed;
             else
-                noiseSglRatio{instance}(methodType) = sqrt(mse(godCastDem', ...
+                noiseSglRatioDem{instance}(methodType) = sqrt(mse(godCastDem', ...
                     demForecastUsed))/rms(demForecastUsed(:));
             end
         end
@@ -271,7 +273,7 @@ else
     peakReductionsArray = peakPowersArray;
     smallestExitFlagArray = peakPowersArray;
     lossTestResultsArray = peakPowersArray;
-    noiseSglRatioArray = peakPowersArray;
+    noiseSglRatioArrayDem = peakPowersArray;
     meanKWhsArray = zeros(cfg.sim.nAggregates, length(cfg.sim.nCustomers));
     
     instance = 0;
@@ -295,8 +297,8 @@ else
                 lossTestResultsArray(iMethod, trial, nCustIdx) = ...
                     lossTestResultsDemand{instance}(iMethod);
                 
-                noiseSglRatioArray(iMethod, trial, nCustIdx) = ...
-                    noiseSglRatio{instance}(iMethod);
+                noiseSglRatioArrayDem(iMethod, trial, nCustIdx) = ...
+                    noiseSglRatioDem{instance}(iMethod);
             end
         end
     end
@@ -317,7 +319,7 @@ else
     results.smallestExitFlag = smallestExitFlagArray;
     results.meanKWhs = meanKWhsArray;
     results.lossTestResults = lossTestResultsArray;
-    results.noiseSglRatio = noiseSglRatioArray;
+    results.noiseSglRatioDem = noiseSglRatioArrayDem;
     results.featureVectorsFF = featureVectorsFF;
     results.featureVectors = featureVectors;
 end

@@ -9,7 +9,7 @@ peakReductionsTrialFlattened = results.peakReductionsTrialFlattened;
 smallestExitFlag = results.smallestExitFlag;
 peakReductions = results.peakReductions;
 lossTestResults = results.lossTestResults;
-noiseSglRatio = results.noiseSglRatio;
+noiseSglRatioDem = results.noiseSglRatioDem;
 
 nDaysTrain = cfg.fc.nDaysTrain;
 nDaysTest = cfg.sim.nDaysTest;
@@ -178,7 +178,7 @@ for customerGroupSize = 1:nCustomerGroupSizes
         ' customer(s)']);
     
     subplot(nCustomerGroupSizes, 2, 2*customerGroupSize);
-    boxplot(noiseSglRatio(forecastDrivenIdxs, :, customerGroupSize)',...
+    boxplot(noiseSglRatioDem(forecastDrivenIdxs, :, customerGroupSize)',...
         'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
     ylabel('Noise to Signal Ratio []');
     title([num2str(cfg.sim.nCustomers(customerGroupSize)),...

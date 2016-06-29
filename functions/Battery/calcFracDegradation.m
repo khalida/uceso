@@ -17,10 +17,10 @@ switch cfg.bat.damageModel
 fracDegradation = DoD/(cfg.bat.nominalCycleLife*cfg.bat.nominalDoD*2);
 
     case 'staticMultifactor'
-%% Static multi-factor Damage
+%% Static multi-factor Damage (to be implemented)
 
     case 'dynamicMultifactor'
-%% Static multi-factor Damage
+%% Static multi-factor Damage (to be implemented)
 
 end
 

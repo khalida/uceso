@@ -35,6 +35,8 @@ if isequal(cfg.type, 'oso')
     zeroTrIdx = 48 - 2*hour(serialTime(firstTrIdx)) - ...
         minute(serialTime(firstTrIdx))/30;
     
+    % Second alignment step should not be necessary, if whole No. days
+    % training and testing selected?
     testIdxs = firstTrIdx + zeroTrIdx + (1:nIntervalsTest);
     dataTest.demand = allDemandValues(testIdxs, :);
     dataTest.pv = allPvValues(testIdxs, :);
@@ -57,6 +59,7 @@ else
     
     dataTrain.demand = zeros(nIntervalsTrain, cfg.sim.nInstances);
     dataTest.demand = zeros(nIntervalsTest, cfg.sim.nInstances);
+    dataTest.meanTrainKwhs = zeros(1, cfg.sim.nInstances);
     
     instance = 0;
     for nCustomerIdx = 1:length(cfg.sim.nCustomers)
@@ -71,6 +74,9 @@ else
             dataTest.demand(:, instance) = ...
                 sum(demandData(nIntervalsTrain+(1:nIntervalsTest), ...
                 customerIdxs), 2);
+            
+            dataTest.meanTrainKwhs(instance) = ...
+                mean(dataTrain.demand(:, instance));
         end
     end
 end

@@ -37,7 +37,7 @@ end
 
 decision = respVec(1);
 b0_raw = decision;
-if cfg.opt.setPointRecourse && ~isequal(cfg.type, 'oso')
+if cfg.opt.setPointRecourse && isequal(cfg.type, 'minMaxDemand')
     peakForecastEnergy = max([peakEnergy; peakSoFar]);
 else
     peakForecastEnergy = [];
@@ -46,8 +46,8 @@ end
 %% Apply feasibility constraints on charge decision
 if isequal(cfg.type, 'oso')
     % NB: for oso; decision is bestDischargeStep
-    decision = -battery.limitChargeStep(-decision);
     decision = fix(decision);
+    decision = -battery.limitChargeStep(-decision);
 else
     decision = battery.limitCharge(decision);
 end
