@@ -14,26 +14,22 @@ test_generateForecastFreeController
 
 test_controllerOptimizer;
 test_createGodCast;
-test_lossPemd;
-test_lossPfem;
-test_lossEmd;
-test_lossMape;
-test_lossMse;
-test_mpcController;
-test_forecastFfnn;
-test_trainFfnn;
-test_trainFfnnMultipleStarts;
-test_forecastSarma;
-test_trainSarma;
-test_adjacentPairSwapLimitedPermutations;
-test_closeEnough;
-test_computeFeatureResponseVectors;
-test_extractSimulationResults;
-test_isWholeNumber;
-test_makeAllLimitedPermutations;
-test_setDefaultValues;
-test_getAutomatedForecastR_simple;
-test_getAutomatedForecastR_onDemand;
+
+% test_mpcController;
+% test_forecastFfnn;
+% test_trainFfnn;
+% test_trainFfnnMultipleStarts;
+% test_forecastSarma;
+% test_trainSarma;
+% test_adjacentPairSwapLimitedPermutations;
+% test_closeEnough;
+% test_computeFeatureResponseVectors;
+% test_extractSimulationResults;
+% test_isWholeNumber;
+% test_makeAllLimitedPermutations;
+% test_setDefaultValues;
+% test_getAutomatedForecastR_simple;
+% test_getAutomatedForecastR_onDemand;
 
 toc;
 

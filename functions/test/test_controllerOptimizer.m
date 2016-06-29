@@ -3,6 +3,7 @@
 clearvars;
 
 %% Set-up a simple problem:
+cfg.type = 'minMaxDemand';
 cfg.opt.clipNegativeFcast = false;
 cfg.sim.horizon = 48;
 cfg.opt.knowDemandNow = false;
@@ -12,6 +13,7 @@ cfg.opt.secondWeight = 0;
 cfg.opt.rewardMargin = true;
 cfg.opt.iterationFactor = 1.0;
 cfg.sim.eps = 1e-8;                % Small No. to avoid rounding issues
+cfg.fc.clipNegative = true;
 
 % Battery properties:
 cfg.sim.batteryChargingFactor = 1.0;

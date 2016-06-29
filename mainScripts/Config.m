@@ -10,7 +10,7 @@
 
 function cfg = Config(pwd)
 
-cfg.type = 'oso';   % minMaxDemand, 'oso'
+cfg.type = 'oso';   % 'minMaxDemand', 'oso'
 rng(42);        % For repeatability
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
