@@ -14,7 +14,7 @@ cfg.type = 'oso';   % 'minMaxDemand', 'oso'
 rng(42);        % For repeatability
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
-nProcAvail = 4;
+nProcAvail = 12;
 
 % Location of input data files
 [parentFold, ~, ~] = fileparts(pwd);
@@ -50,10 +50,10 @@ mkdir(cfg.sav.resultsDir);
 if isequal(cfg.type, 'minMaxDemand')
     cfg.sim.batteryCapacityRatio = 0.05;  % fraction of daily mean demand
     cfg.sim.nCustomers = [1, 5, 25, 125];
-    cfg.sim.nAggregates = 2;
+    cfg.sim.nAggregates = 3;
     cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 else
-    cfg.sim.nInstances = 3;
+    cfg.sim.nInstances = 12;
     % Battery properties for Oso study only
     cfg.sim.batteryCapacity = 2.5;
     cfg.sim.batteryEtaC = 0.94;
@@ -96,7 +96,7 @@ cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
 
 % Forecast-free options
-cfg.fc.nTrainShuffles = 40;                    % # of shuffles to consider
+cfg.fc.nTrainShuffles = 10;                    % # of shuffles to consider
 cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
 cfg.fc.nNodesFF = 50;                          % No. of nodes in FF ctrler
 cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future? (true for testing only)
