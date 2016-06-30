@@ -9,7 +9,7 @@ function [ results ] = testAllForecasts(cfg, trainedModels, data)
 % results:      Structure of output/final results
 
 
-%% Pre-Allocation
+%% Pre-Allocation, OSO-only
 if isequal(cfg.type, 'oso')
     totalCost = cell(cfg.sim.nInstances, 1);
     totalDamageCost = cell(cfg.sim.nInstances, 1);
@@ -18,6 +18,7 @@ if isequal(cfg.type, 'oso')
     lossTestResultsPv = cell(cfg.sim.nInstances, 1);
     allDemFcs = cell(cfg.sim.nInstances, 1);
     allPvFcs = cell(cfg.sim.nInstances, 1);
+    noiseSglRatioPv = cell(cfg.sim.nInstances, 1);
     
     for instance = 1:cfg.sim.nInstances
         totalCost{instance} = zeros(cfg.sim.nMethods,1);
@@ -29,17 +30,17 @@ if isequal(cfg.type, 'oso')
         lossTestResultsPv{instance} = zeros(cfg.sim.nMethods, 1);
         allDemFcs{instance} = cell(cfg.sim.nMethods, 1);
         allPvFcs{instance} = cell(cfg.sim.nMethods, 1);
+        noiseSglRatioPv{instance} = zeros(cfg.sim.nMethods, 1);
     end
     % Avoid parfor error:
     meanKWhs = zeros(cfg.sim.nInstances, 1);
-else
+else %% minMaxDemand-only:
     peakReductions = cell(cfg.sim.nInstances, 1);
     peakPowers = cell(cfg.sim.nInstances, 1);
     smallestExitFlag = cell(cfg.sim.nInstances, 1);
     meanKWhs = zeros(cfg.sim.nInstances, 1);
     lossTestResultsDemand = cell(cfg.sim.nInstances, 1);
-    noiseSglRatioDem = cell(cfg.sim.nInstances, 1);
-    featureVectorsFF = cell(cfg.sim.nInstances, 1);
+    
     featureVectors = cell(cfg.sim.nInstances, 1);
     
     for instance = 1:cfg.sim.nInstances
@@ -48,8 +49,14 @@ else
         peakPowers{instance} = zeros(cfg.sim.nMethods,1);
         smallestExitFlag{instance} = zeros(cfg.sim.nMethods,1);
         lossTestResultsDemand{instance} = zeros(cfg.sim.nMethods, 1);
-        noiseSglRatioDem{instance} = zeros(cfg.sim.nMethods, 1);
     end
+end
+
+%% Communal:
+featureVectorsFF = cell(cfg.sim.nInstances, 1);
+noiseSglRatioDem = cell(cfg.sim.nInstances, 1);
+for instance = 1:cfg.sim.nInstances
+    noiseSglRatioDem{instance} = zeros(cfg.sim.nMethods, 1);
 end
 
 
@@ -59,10 +66,16 @@ testingTic = tic;
 % Delete parrallel pool if one already exists
 poolobj = gcp('nocreate');
 delete(poolobj);
+% Set-up cluster job with own dir (to avoid error messages):
+myCluster = parcluster('local');
+tmpDirName = tempname;
+mkdir(tmpDirName);
+myCluster.JobStorageLocation = tmpDirName;
+poolobj = parpool(myCluster);
 
 disp('===== Forecast Testing =====')
 parfor instance = 1:cfg.sim.nInstances
-% for instance = 1:cfg.sim.nInstances
+    % for instance = 1:cfg.sim.nInstances
     
     % Avoid parfor errors:
     runControl = [];
@@ -73,7 +86,8 @@ parfor instance = 1:cfg.sim.nInstances
     pvForecastUsed = [];
     peakLocalPower = [];
     exitFlag = [];
-        
+    demForecastUsed = [];
+    
     %% Battery properties
     if isequal(cfg.type, 'oso') %#ok<*PFBNS>
         battery = Battery(cfg, cfg.sim.batteryCapacity);
@@ -89,19 +103,13 @@ parfor instance = 1:cfg.sim.nInstances
     % Create godCast (perfect foresight) forecasts
     godCastDem = createGodCast(demandDataTest, cfg.sim.horizon);
     
-    % Avoid parfor errors
-    demForecastUsed = [];
-    
     if isequal(cfg.type, 'oso')
         pvDelays = data.pv(delayIdxs, instance); %#o%#ok<MSNU> k<PFBNS>
         pvDataTest = data.pv((max(delayIdxs)+1):end, instance);
         % Create godCast (perfect foresight) forecasts
         godCastPv = createGodCast(pvDataTest, cfg.sim.horizon);
-        % Avoid parfor errors
-        pvForecastUsed = [];
     else
         peakLocalPower = max(demandDataTest);
-        exitFlag = [];
     end
     
     %% Test performance of all methods
@@ -125,14 +133,14 @@ parfor instance = 1:cfg.sim.nInstances
                     featureVectorsFF{instance}, ~, ~, ~] = ...
                     mpcControllerDp(cfg, trainedModels{instance, ...
                     methodType}, godCastDem, demandDataTest, godCastPv,...
-                    pvDataTest, demandDelays,...
-                    pvDelays, battery, runControl);
+                    pvDataTest, demandDelays, pvDelays, battery,...
+                    runControl);
                 
             else
-                [ runningPeak, ~, ~, ~, featureVectorsFF{instance}, ~] = ...
-                    mpcController(cfg, trainedModels{instance, methodType},...
-                    godCastDem, demandDataTest, demandDelays, battery, ...
-                    runControl);
+                [ runningPeak, ~, ~, ~, featureVectorsFF{instance}, ~] =...
+                    mpcController(cfg, trainedModels{instance, ...
+                    methodType}, godCastDem, demandDataTest, ...
+                    demandDelays, battery, runControl);
             end
             
         else
@@ -151,7 +159,7 @@ parfor instance = 1:cfg.sim.nInstances
             end
             
             if isequal(cfg.type, 'oso')
-
+                
                 [ totalCost{instance}(methodType,1), ...
                     storageProfile{instance}(methodType,:), ...
                     totalDamageCost{instance}(methodType,1), ...
@@ -170,10 +178,12 @@ parfor instance = 1:cfg.sim.nInstances
         
         if isequal(cfg.type, 'oso')
             % Extract oso sim results (NB: this still needs to be
-            % implemented!)
+            % implemented, if we want anything other than totalCost etc.)
+            
         else
             % Extract minMaxDemand sim results
-            lastIdxCommon = length(runningPeak) - mod(length(runningPeak), ...
+            lastIdxCommon = length(runningPeak) - ...
+                mod(length(runningPeak), ...
                 cfg.sim.stepsPerDay*cfg.sim.billingPeriodDays);
             
             idxsCommon = 1:lastIdxCommon;
@@ -197,17 +207,24 @@ parfor instance = 1:cfg.sim.nInstances
         isSetPoint = strcmp(thisMethodString, 'SP');
         
         if (~isForecastFree && ~isSetPoint)
-            lossTestResultsDemand{instance}(methodType) = mse(godCastDem', ...
-                demForecastUsed);
+            lossTestResultsDemand{instance}(methodType) = mse(...
+                godCastDem', demForecastUsed);
+            
+            allDemFcs{instance}{methodType} = demForecastUsed;
+            
+            noiseSglRatioDem{instance}(methodType) = sqrt(mse(...
+                godCastDem', demForecastUsed))/rms(demForecastUsed(:));
             
             if isequal(cfg.type, 'oso')
                 lossTestResultsPv{instance}(methodType) = mse(godCastPv',...
                     pvForecastUsed);
-                allDemFcs{instance}{methodType} = demForecastUsed;
+                
                 allPvFcs{instance}{methodType} = pvForecastUsed;
+                
+                noiseSglRatioPv{instance}(methodType) = sqrt(mse(...
+                    godCastPv', pvForecastUsed))/rms(pvForecastUsed(:));
             else
-                noiseSglRatioDem{instance}(methodType) = sqrt(mse(godCastDem', ...
-                    demForecastUsed))/rms(demForecastUsed(:));
+                
             end
         end
     end
@@ -217,7 +234,6 @@ parfor instance = 1:cfg.sim.nInstances
     
 end
 
-poolobj = gcp('nocreate');
 delete(poolobj);
 
 timeTesting = toc(testingTic);
@@ -233,6 +249,8 @@ if isequal(cfg.type, 'oso')
     totalDamageCostArray = zeros(cfg.sim.nInstances, cfg.sim.nMethods);
     demandTestResultsArray = zeros([cfg.sim.nInstances, cfg.sim.nMethods]);
     pvTestResultsArray = zeros([cfg.sim.nInstances, cfg.sim.nMethods]);
+    noiseSglRatioArrayDem = zeros([cfg.sim.nInstances, cfg.sim.nMethods]);
+    noiseSglRatioArrayPv = zeros([cfg.sim.nInstances, cfg.sim.nMethods]);
     storageProfilesArray = zeros([cfg.sim.nInstances, cfg.sim.nMethods, ...
         length(data.demand(:, 1))-cfg.fc.nLags-cfg.sim.horizon+1]);
     
@@ -246,13 +264,19 @@ if isequal(cfg.type, 'oso')
                 totalDamageCost{instance}(iMethod, 1);
             
             demandTestResultsArray(instance, iMethod) = ...
-                lossTestResultsDemand{instance}(iMethod);
+                lossTestResultsDemand{instance}(iMethod, 1);
             
             pvTestResultsArray(instance, iMethod) = ...
-                lossTestResultsPv{instance}(iMethod);
+                lossTestResultsPv{instance}(iMethod, 1);
             
             storageProfilesArray(instance, iMethod, :) = ...
                 storageProfile{instance}(iMethod, :);
+            
+            noiseSglRatioArrayDem(instance, iMethod) = ...
+                noiseSglRatioDem{instance}(iMethod, 1);
+            
+            noiseSglRatioArrayPv(instance, iMethod) = ...
+                noiseSglRatioPv{instance}(iMethod, 1);
         end
     end
     
@@ -264,6 +288,9 @@ if isequal(cfg.type, 'oso')
     results.storageProfile = storageProfilesArray;
     results.allDemFcs = allDemFcs;
     results.allPvFcs = allPvFcs;
+    results.noiseSglRatioDem = noiseSglRatioArrayDem;
+    results.noiseSglRatioPv = noiseSglRatioArrayPv;
+    results.featureVectorsFF = featureVectorsFF;
     
 else
     %% Data from minMaxDemand type solution

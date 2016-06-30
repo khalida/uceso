@@ -28,8 +28,6 @@ test_createGodCast;
 % test_isWholeNumber;
 % test_makeAllLimitedPermutations;
 % test_setDefaultValues;
-% test_getAutomatedForecastR_simple;
-% test_getAutomatedForecastR_onDemand;
 
 toc;
 

@@ -20,6 +20,7 @@ if isequal(cfg.type, 'oso')
     
     serialTime = datetime(unixTime1, 'ConvertFrom', 'posixtime', ...
         'TimeZone', 'Australia/Sydney');
+    
     serialTime = serialTime(1:dataLengthRequired);
     allDemandValues = allDemandValues(1:dataLengthRequired,:);
     allPvValues = allPvValues(1:dataLengthRequired,:);

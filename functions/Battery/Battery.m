@@ -16,7 +16,6 @@ classdef Battery < handle
         eps                 % threshold for constraint checking
         cumulativeDamage    % cumulative fractional damage in Sim so far
         cumulativeValue     % total value of batt. in Sim so far
-        prevValue           % previous value est of battery
     end
     
     methods
@@ -42,7 +41,7 @@ classdef Battery < handle
                     obj.minDischargeStep = -obj.maxDischargeStep;
                     obj.cumulativeDamage = eps;
                     obj.cumulativeValue = 0;
-                    obj.prevValue = 1;
+                    
                 else
                     % Initialize battery for minMaxDemand problem
                     obj.maxChargeEnergy = obj.maxChargeRate/...
@@ -243,8 +242,13 @@ classdef Battery < handle
         function value = Value(this)
             if isequal(this.cfg.type, 'minMaxDemand')
                 error('Cannot return value for minMaxDemand opt');
+            else
+                if this.cfg.sim.updateBattValue
+                    value = this.cumulativeValue/this.cumulativeDamage;
+                else
+                    value = this.cfg.bat.costPerKwhUsed;
+                end
             end
-            value = this.cumulativeValue/this.cumulativeDamage;
         end
     end
 end

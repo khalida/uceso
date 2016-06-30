@@ -252,7 +252,6 @@ for tsTrIdx = 1:length(tsTrainLengths)
         disp('=== SIM: Exact controller, godCast ===');
         if isequal(cfg.type, 'oso')
             nStates = length(battery.statesInt);
-            runControl.initialState = battery.statesInt(fix(nStates/2)+1);
             
             % Run OSO model
             pvDelays = testPvSeries(1:cfg.fc.nLags);

@@ -12,6 +12,7 @@ function [ unixTime, allValues ] = importFilesFromFolder( folderName, ...
 list = dir(folderName); %get info of files/folders in 'folderName'
 isfile = ~[list.isdir]; %determine index of files vs folders
 filenames = {list(isfile).name}; %create cell array of file names
+filenames = natsortfiles(filenames); % Sort filenames into 'natural' order:
 nFiles = length(filenames);
 
 %% Pre-allocate

@@ -14,7 +14,7 @@ cfg.type = 'oso';   % 'minMaxDemand', 'oso'
 rng(42);        % For repeatability
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
-nProcAvail = 12;
+nProcAvail = 4;
 
 % Location of input data files
 [parentFold, ~, ~] = fileparts(pwd);
@@ -53,16 +53,16 @@ if isequal(cfg.type, 'minMaxDemand')
     cfg.sim.nAggregates = 3;
     cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 else
-    cfg.sim.nInstances = 12;
+    cfg.sim.nInstances = 2;
     % Battery properties for Oso study only
-    cfg.sim.batteryCapacity = 2.5;
+    cfg.sim.batteryCapacity = 1;
     cfg.sim.batteryEtaC = 0.94;
     cfg.sim.batteryEtaD = 0.94;
-    cfg.sim.batteryCostPerKwhUsed = 0;
+    cfg.sim.updateBattValue = false;
     cfg.sim.minCostDiff = 1e-6;
 end
 cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
-cfg.sim.nDaysTest = 38*7;           % days to run simulation for
+cfg.sim.nDaysTest = 3*7; %38*7;           % days to run simulation for
 cfg.sim.stepsPerHour = 2;           % 30-minutely data
 cfg.sim.hoursPerDay = 24;
 cfg.sim.eps = 1e-4;                 % Threshold for constraint checking
@@ -75,19 +75,19 @@ cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC', 'IMFC', 'PFFC'};
 
 %% cfg.fc: Forecast, and forecast training Settings
-cfg.fc.nDaysTrain = 38*7;     % days of historic demand to train on
+cfg.fc.nDaysTrain = 3*7; % 38*7;     % days of historic demand to train on
 cfg.fc.modelType = 'FFNN';    % {'RNN', 'MLR', 'RNN', '...'}
 
 % Seasonal period for NP forecast, in intervals
 cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
-cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
+cfg.fc.nNodes = 5; %50;                 % No. of nodes for NN, forests for RF
 cfg.fc.nStart = 3;                  % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
-cfg.fc.mseEpochs = 1000;
-cfg.fc.maxTime = 45*60;             % Max seconds to train one NN
+cfg.fc.mseEpochs = 100; %1000;
+cfg.fc.maxTime = 4*60; %45*60;             % Max seconds to train one NN
 cfg.fc.nRecursive = 1;              % No. of recursive feedbacks for RNN
 cfg.fc.clipNegative = true;         % Prevent output fcasts from being -ve
 
@@ -96,9 +96,9 @@ cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
 
 % Forecast-free options
-cfg.fc.nTrainShuffles = 10;                    % # of shuffles to consider
+cfg.fc.nTrainShuffles = 2; %10;                    % # of shuffles to consider
 cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
-cfg.fc.nNodesFF = 50;                          % No. of nodes in FF ctrler
+cfg.fc.nNodesFF = 5; %50;                          % No. of nodes in FF ctrler
 cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
 cfg.fc.randomizeInterval = 7;
@@ -124,6 +124,7 @@ cfg.bat.nominalCycleLife = 1825;    % 5yrs, 1 cycle (charge/discharge) per day
 cfg.bat.nominalDoD = 80;            % 10% - 90% cycle
 cfg.bat.nominalSoCav = 50;
 cfg.bat.maxLifeHours = 7*365.25*24; % 7yrs
+cfg.bat.costPerKwhUsed = 0.12;
 
 %% cfg.plt: Plotting Settings
 cfg.plt.visible = 'on';             % Whether to plot vizible output

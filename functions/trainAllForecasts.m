@@ -37,6 +37,12 @@ end
 % Delete parrallel pool if it exists
 poolobj = gcp('nocreate');
 delete(poolobj);
+% Set-up cluster job with own dir (to avoid error messages):
+myCluster = parcluster('local');
+tmpDirName = tempname;
+mkdir(tmpDirName);
+myCluster.JobStorageLocation = tmpDirName;
+poolobj = parpool(myCluster);
 
 parfor instance = 1:cfg.sim.nInstances
 % for instance = 1:cfg.sim.nInstances
@@ -107,7 +113,6 @@ parfor instance = 1:cfg.sim.nInstances
 end
 
 % Kill the parrallel pool (errors tend to occur if pool kept open too long)
-poolobj = gcp('nocreate');
 delete(poolobj);
 
 trainTime = timeTaken;

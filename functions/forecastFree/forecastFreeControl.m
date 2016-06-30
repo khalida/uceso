@@ -8,8 +8,12 @@ function [decision, peakForecastEnergy, b0_raw] = ...
 % battery:      Battery object
 
 %% OUTPUTS:
-% energyToBatteryNow: energy to send to battery during present interval
-% peakForecastEnergy: peak energy expected over interval
+% decision:     minMaxDemand: kWh to charge battery with in interval, 
+              % oso: bestDischargeStep for interval
+              
+% peakForecastEnergy: peak energy expected over interval(minMaxDemand only)
+
+% b0_raw:      output of frecast-free model before batt constraints applied
 
 switch cfg.fc.modelType
     

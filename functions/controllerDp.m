@@ -1,4 +1,4 @@
-function [bestDischargeStep, bestCTG] = controllerDp(cfg, demandForecast, ...
+function [bestDischargeStep, bestCTG] = controllerDp(cfg, demForecast, ...
     pvForecast, battery, hourNow)
 
 % controllerDp: Solve dynamic program for the curent horizon, to
@@ -50,7 +50,7 @@ for t = nStages:-1:1
             end
             
             % Find energy from grid during interval
-            g_t = demandForecast(t)- b_hat - pvForecast(t);
+            g_t = demForecast(t)- b_hat - pvForecast(t);
             
             % Get import and export prices (based on time-of-day)
             [importPrice, exportPrice] = getGridPrices(...
@@ -102,7 +102,7 @@ for t=2:nStages
         b_hat = ST_b(q_t_state(t-1), t-1)*battery.increment/...
             cfg.sim.batteryEtaC;
     end
-    gridImport(t) = demandForecast(t)- b_hat - pvForecast(t);
+    gridImport(t) = demForecast(t)- b_hat - pvForecast(t);
     
     if(q_t_state(t) < 1 || q_t_state(t)>nStates)
         error('Battery state out of bounds');
@@ -122,7 +122,7 @@ bestCTG = CTG(battery.state, 1);
 
 % Produce plot of optimal horizon decisions for 1st interval:
 if isempty(doneHorizonPlot)
-    plotHorizon(demandForecast, pvForecast, q_t_state, hourNow, ...
+    plotHorizon(demForecast, pvForecast, q_t_state, hourNow, ...
         gridImport);
     
     doneHorizonPlot = true;

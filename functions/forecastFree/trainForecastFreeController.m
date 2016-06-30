@@ -5,7 +5,7 @@ function [ model ] = trainForecastFreeController( cfg,  demandDataTrain,...
 %           properties, and time-series of historic demand (& pv) data.
 
 %% INPUTS:
-% cfg:              Structure of configuration parameters (including train options)
+% cfg:              Structure of config. parameters (incl. train options)
 % demandDataTrain:  Vector of historic demand values [nObs x 1]
 % varargin:         If 'oso' problem solved, pvDataTrain will also be
 %                       passed in
@@ -61,7 +61,7 @@ runControl.naivePeriodic = false;
 runControl.setPoint = false;
 
 if isequal(cfg.type, 'oso')
-    [ ~, ~, ~, ~, ~, respVecs, featVecs, ~] = mpcControllerDp(cfg, ...
+    [ ~, ~, ~, ~, ~, respVecs, featVecs, ~, ~, ~] = mpcControllerDp(cfg, ...
         [], demGodCast, demandDataTrainOnly, pvGodCast, pvDataTrainOnly,...
         demandDelays, pvDelays, battery, runControl);
 else
@@ -129,8 +129,8 @@ for eachShuffle = 1:cfg.fc.nTrainShuffles
             error('Got inconsistent No. of train intervals from godCast');
         end
         
-        [ ~, ~, ~, ~, ~, respVecs, featVecs, ~] = mpcControllerDp(cfg, ...
-            [], demGodCast, demandDataTrainOnly, pvGodCast, ...
+        [ ~, ~, ~, ~, ~, respVecs, featVecs, ~, ~, ~] = mpcControllerDp(...
+            cfg, [], demGodCast, demandDataTrainOnly, pvGodCast, ...
             pvDataTrainOnly, demandDelays, pvDelays, battery, runControl);
     else
         [ ~, ~, ~, respVecs, featVecs, ~] = mpcController(cfg, [], ...
@@ -143,8 +143,8 @@ for eachShuffle = 1:cfg.fc.nTrainShuffles
     offset = offset + nTrainIdxs;
     
     % Print output (to confirm progress):
-    disp(['Shuffle done, of: ' num2str(cfg.fc.nTrainShuffles)]);
-    disp(eachShuffle);
+    disp(['Completed shuffle ' num2str(eachShuffle) ' of ' ...
+        num2str(cfg.fc.nTrainShuffles)]);
 end
 
 %% Train forecast-free model based on examples generated

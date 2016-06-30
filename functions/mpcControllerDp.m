@@ -1,7 +1,7 @@
 function [ totalCost, chargeProfile, totalDamageCost, demForecastUsed,...
-    pvForecastUsed, respVecs, featVecs, bestCTG, imp, exp] = mpcControllerDp(cfg, ...
-    trainedModel, demGodCast, demand, pvGodCast, pv, demandDelays,...
-    pvDelays, battery, runControl)
+    pvForecastUsed, respVecs, featVecs, bestCTG, imp, exp] = ...
+    mpcControllerDp(cfg, trainedModel, demGodCast, demand, pvGodCast, ...
+    pv, demandDelays, pvDelays, battery, runControl)
 
 % mpcController: Simulate time series behaviour of MPC controller with
 % given forecast, using DP to solve horizon
@@ -20,11 +20,7 @@ end
 
 
 %% Initializations
-if isfield(runControl, 'initialState')
-    battery.randomReset();
-else
-    battery.reset();
-end
+battery.reset();
 nIdxs = size(demGodCast, 1);
 if nIdxs ~= size(pvGodCast, 1)
     error('pv and demand godcast not of same length');
@@ -79,7 +75,7 @@ for idx = 1:nIdxs;
     imp(idx) = importPrice;
     exp(idx) = exportPrice;
     
-    % Create Feature/Response Vec for FF controller training!
+    % Create Feature/Response Vec for FF controller training/use:
     % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
     % hourNum]
     if cfg.opt.knowDemandNow
@@ -90,22 +86,23 @@ for idx = 1:nIdxs;
             hourNow];
     end
     
+    %%%% NO BATTERY %%%%
     if isfield(runControl, 'NB') && runControl.NB
         bestDischargeStep = 0;
-        b_hat = 0;
         
+        %%%% FORECAST FREE %%%%
     elseif isfield(runControl, 'forecastFree') && runControl.forecastFree
         [bestDischargeStep, ~, ~] = forecastFreeControl(cfg, ...
             featVecs(:, idx), battery, trainedModel, []);
         
-        if bestDischargeStep < 0
-            b_hat = bestDischargeStep*battery.increment/cfg.sim.batteryEtaC;
-        else
-            b_hat = bestDischargeStep*battery.increment*cfg.sim.batteryEtaD;
-        end
+        % Using FF, no need for a forecast
+        demForecastUsed(:, idx) = zeros(cfg.sim.horizon, 1);
+        pvForecastUsed = zeros(cfg.sim.horizon, 1);
         
+        %%%% SP, or NORMAL FORECAST-DRIVEN MODEL %%%%
     else
         
+        % Obtain forecast as required
         if runControl.godCast
             demandForecast = demGodCast(idx, :)';
             pvForecast = pvGodCast(idx, :)';
@@ -115,17 +112,12 @@ for idx = 1:nIdxs;
             pvForecast = pvGodCast(idx, :)';
             
         elseif runControl.naivePeriodic
-            demandForecast = demandDelays(end-cfg.sim.horizon+1:end);
-            pvForecast = pvDelays(end-cfg.sim.horizon+1:end);
+            demandForecast = demandDelays((end-cfg.sim.horizon+1):end);
+            pvForecast = pvDelays((end-cfg.sim.horizon+1):end);
             
         elseif runControl.setPoint
             demandForecast = ones(cfg.sim.horizon, 1).*demandNow;
             pvForecast = ones(cfg.sim.horizon, 1).*pvNow;
-            
-        elseif isfield(runControl, 'forecastFree') && runControl.forecastFree
-            % No need for a forecast
-            demandForecast = zeros(cfg.sim.horizon, 1);
-            pvForecast = zeros(cfg.sim.horizon, 1);
             
         else
             % Produce forecast from input model (& asosciated method)
@@ -139,10 +131,11 @@ for idx = 1:nIdxs;
         pvForecastUsed(:, idx) = pvForecast;
         
         if ~runControl.setPoint
+            % Do DP control:
             [bestDischargeStep, bestCTG(idx)] = controllerDp(cfg, ...
                 demandForecast, pvForecast, battery, hourNow);
         else
-            % Do set-point control:
+            % Do SP control:
             bestDischargeValue = demandNow - pvNow;
             bestDischargeStep = round(bestDischargeValue./...
                 battery.increment);
@@ -151,32 +144,32 @@ for idx = 1:nIdxs;
             bestDischargeStep = ...
                 -battery.limitChargeStep(-bestDischargeStep);
         end
-        
-        % Implement set point recourse, if selected
-        % don't increase exports by discharging
-        if cfg.opt.setPointRecourse
-            while bestDischargeStep > 0 && (pvNow - demandNow + ...
-                    bestDischargeStep*battery.increment*...
-                    cfg.sim.batteryEtaD) > 0
-                
-                bestDischargeStep = bestDischargeStep - 1;
-            end
+    end
+    
+    % Implement set point recourse, if selected
+    % don't increase exports by discharging
+    if cfg.opt.setPointRecourse
+        while bestDischargeStep > 0 && (pvNow - demandNow + ...
+                bestDischargeStep*battery.increment*...
+                cfg.sim.batteryEtaD) > 0
             
-            % Limit SPR decision to feasible range
-            bestDischargeStep = ...
-                -battery.limitChargeStep(-bestDischargeStep);
+            bestDischargeStep = bestDischargeStep - 1;
         end
         
-        % Store best discharge step decision
-        respVecs(:, idx) = bestDischargeStep;
-        
-        if bestDischargeStep < 0
-            b_hat = (bestDischargeStep*battery.increment)...
-                /cfg.sim.batteryEtaC;
-        else
-            b_hat = (bestDischargeStep*battery.increment)...
-                *cfg.sim.batteryEtaD;
-        end
+        % Limit SPR decision to feasible range
+        bestDischargeStep = ...
+            -battery.limitChargeStep(-bestDischargeStep);
+    end
+    
+    % Store best discharge step decision
+    respVecs(:, idx) = bestDischargeStep;
+    
+    if bestDischargeStep < 0
+        b_hat = (bestDischargeStep*battery.increment)...
+            /cfg.sim.batteryEtaC;
+    else
+        b_hat = (bestDischargeStep*battery.increment)...
+            *cfg.sim.batteryEtaD;
     end
     
     % Apply control decision, subject to rate and state of charge
@@ -203,7 +196,6 @@ for idx = 1:nIdxs;
     valueOverNBs(idx) = valueOverNB;
     b_hats(idx) = b_hat;
     batteryValues(idx) = battery.Value();
-
     
     fracDegradation = calcFracDegradation(cfg, battery, battery.state,...
         bestDischargeStep);
@@ -225,7 +217,7 @@ for idx = 1:nIdxs;
 end
 
 figure;
-plot(cumulativeValue);
+plot(cumulativeValue); ylabel('Battery Cumulative Value');
 disp('Ending Battery Value: ');
 disp(battery.Value());
 

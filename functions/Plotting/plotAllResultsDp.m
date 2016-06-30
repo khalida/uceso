@@ -8,6 +8,9 @@ totalCost = results.totalCost;
 totalDamageCost = results.totalDamageCost;
 demandTestResults = results.demandTestResults;
 pvTestResults = results.pvTestResults;
+noiseSglRatioDem = results.noiseSglRatioDem;
+noiseSglRatioPv = results.noiseSglRatioPv;
+
 storageProfile = results.storageProfile;
 
 nDaysTrain = cfg.fc.nDaysTrain;
@@ -49,7 +52,7 @@ batteryValue = repmat(totalCost(:,noBatteryIdx),[1, nMethods]) - totalCost;
 boxplot(batteryValue, methodList);
 grid on;
 xlabel('Method');
-ylabel('Cost Saved [$]');
+ylabel('Cost Saved (net of degradation) [$]');
 
 % Relative cost savings
 subplot(3, 2, 4);
@@ -59,7 +62,7 @@ relativeBatteryValue = batteryValue./repmat(...
 boxplot(relativeBatteryValue, methodList);
 grid on;
 xlabel('Method');
-ylabel('Rel. Cost Saved []');
+ylabel('Rel. Nett Cost Saved []');
 
 % Absolute battery damage cost
 subplot(3, 2, 5);
@@ -179,5 +182,48 @@ linkaxes([ax1, ax2], 'x');
 print(fig_6, '-dpdf', [cfg.sav.resultsDir filesep ...
     'timeSeriesInputData.pdf']);
 
+
+%% 7 Box Plots of forecast errors for forecast-based methods (dem/pv)
+fig_7 = figure();
+forecastDrivenMethods = {'NPFC', 'MFFC', 'PFFC'};
+forecastDrivenIdxs = [];
+for ii = 1:length(methodList);
+    if ismember(methodList{ii}, forecastDrivenMethods)
+        forecastDrivenIdxs = [forecastDrivenIdxs ii]; %#ok<AGROW>
+    end
+end
+subplot(1,2,1);
+boxplot(demandTestResults(:, forecastDrivenIdxs), 'labels', ...
+    methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
+ylabel('Demand Forecast MSE [kWh^2]');
+grid on;
+
+subplot(1,2,2);
+boxplot(pvTestResults(:, forecastDrivenIdxs), 'labels', ...
+    methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
+ylabel('PV Forecast MSE [kWh^2]');
+grid on;
+
+print(fig_7, '-dpdf', [cfg.sav.resultsDir filesep ...
+    'forecastMseResultsBoxPlot.pdf']);
+
+%% 8) Plot of the noiseToSignalRatios
+fig_8 = figure();
+subplot(1, 2, 1);
+boxplot(noiseSglRatioDem(:, forecastDrivenIdxs),...
+        'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
+    
+ylabel('Demand Noise-signal Ratio');
+grid on;
+
+subplot(1, 2, 2);
+boxplot(noiseSglRatioPv(:, forecastDrivenIdxs),...
+        'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
+    
+ylabel('PV Noise to Signal Ratio');
+grid on;
+
+print(fig_8, '-dpdf', [cfg.sav.resultsDir filesep ...
+    'noiseToSignalRatioBoxPlot.pdf']);
 
 end
