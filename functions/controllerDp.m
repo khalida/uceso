@@ -57,10 +57,14 @@ for t = nStages:-1:1
                 mod(hourNow+t-1, cfg.sim.horizon));
             
             % Find battery damage cost
-            fracDegradation = calcFracDegradation(cfg, battery, q, ...
-                thisB);
+            %fracDegradation = calcFracDegradation(cfg, battery, q, ...
+            %    thisB);
             
-            damageCost = fracDegradation*battery.Value();
+            %damageCost = fracDegradation*battery.Value();
+            
+            % Battery degradation cost (fixed per kWh-through-put):
+            damageCost = abs(thisB)*battery.increment*0.5*...
+                cfg.bat.costPerKwhUsed;
             
             % Total state transition cost for this decision from here
             thisSTC = importPrice*max(0,g_t) - ...

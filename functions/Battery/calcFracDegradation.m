@@ -13,7 +13,7 @@ DoD = abs(100*b_kWh/battery.capacity);
 switch cfg.bat.damageModel
     
     case 'fixed'
-%% Fixed per kWh Damage
+%% Fixed per kWh-used Damage
 fracDegradation = DoD/(cfg.bat.nominalCycleLife*cfg.bat.nominalDoD*2);
 
     case 'staticMultifactor'

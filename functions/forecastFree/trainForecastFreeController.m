@@ -59,6 +59,8 @@ runControl.godCast = true;
 runControl.modelCast = false;
 runControl.naivePeriodic = false;
 runControl.setPoint = false;
+% run 1st case WITHOUT randomizing:
+runControl.randomizeInterval = 9e9;
 
 if isequal(cfg.type, 'oso')
     [ ~, ~, ~, ~, ~, respVecs, featVecs, ~, ~, ~] = mpcControllerDp(cfg, ...
@@ -81,9 +83,12 @@ allRespVecs(:, 1:nTrainIdxs) = respVecs;
 
 offset = nTrainIdxs;
 
+% for subsequent shuffles, use randomizations:
+runControl.randomizeInterval = cfg.fc.randomizeInterval;
+
 %% Continue generating examples with suffled versions of training data:
-for eachShuffle = 1:cfg.fc.nTrainShuffles
-    
+for eachShuffle = 1:cfg.fc.nTrainShuffles    
+
     newDemandDataTrain = demandDataTrain;
     for eachSwap = 1:cfg.fc.nDaysSwap
         swapStart = randi(length(demandDataTrain) - 2*cfg.sim.horizon);
