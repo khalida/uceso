@@ -10,8 +10,8 @@
 
 function cfg = Config(pwd)
 
-cfg.type = 'oso';   % 'minMaxDemand', 'oso'
-rng(42);        % For repeatability
+cfg.type = 'minMaxDemand';   % 'minMaxDemand', 'oso'
+rng(42);            % For repeatability
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
 nProcAvail = 12;
@@ -47,15 +47,17 @@ mkdir(cfg.sav.resultsDir);
 
 
 %% cfg.sim: Simulation Settings
+cfg.sim.nCustomers = [1, 4, 16, 64];
+cfg.sim.nAggregates = 3;
+cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
+
 if isequal(cfg.type, 'minMaxDemand')
     cfg.sim.batteryCapacityRatio = 0.05;  % fraction of daily mean demand
-    cfg.sim.nCustomers = [1, 5, 25, 125];
-    cfg.sim.nAggregates = 3;
-    cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 else
-    cfg.sim.nInstances = 12;
     % Battery properties for Oso study only
-    cfg.sim.batteryCapacity = 2.5;
+    cfg.sim.batteryCapacityPerCustomer = 2;
+    % Declare total battery size if we want to use single battery size:
+    cfg.sim.batteryCapacityTotal = 2;
     cfg.sim.batteryEtaC = 0.94;
     cfg.sim.batteryEtaD = 0.94;
     cfg.sim.updateBattValue = false;
@@ -96,10 +98,10 @@ cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
 
 % Forecast-free options
-cfg.fc.nTrainShuffles = 25;                    % # of shuffles to consider
-cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % pairs days to swap/shuffle
-cfg.fc.nNodesFF = 50;                          % No. of nodes in FF ctrler
-cfg.fc.knowFutureFF = false;                   % FF ctrlr sees future? (true for testing only)
+cfg.fc.nTrainShuffles = 25; %25;             % # of shuffles to consider
+cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % day-pairs to swap
+cfg.fc.nNodesFF = 50;                   % No. of nodes in FF ctrler
+cfg.fc.knowFutureFF = false;            % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
 cfg.fc.randomizeInterval = 7;
 
@@ -124,7 +126,7 @@ cfg.bat.nominalCycleLife = 1825;    % 5yrs, 1 cycle (charge/discharge) per day
 cfg.bat.nominalDoD = 80;            % 10% - 90% cycle
 cfg.bat.nominalSoCav = 50;
 cfg.bat.maxLifeHours = 7*365.25*24; % 7yrs
-cfg.bat.costPerKwhUsed = 0.15;
+cfg.bat.costPerKwhUsed = 0.15;      % fixed cost for charge and discharge of 1kWh
 
 %% cfg.plt: Plotting Settings
 cfg.plt.visible = 'on';             % Whether to plot vizible output
@@ -161,9 +163,15 @@ if isequal(cfg.type, 'minMaxDemand')
         nCustString '_batt_' num2str(100*cfg.sim.batteryCapacityRatio) ...
         'pc__nAgg_' num2str(cfg.sim.nAggregates) CDstring '.mat'];
 else
-    cfg.sav.finalFileName = [cfg.sav.resultsDir filesep 'batt_' ...
-        num2str(cfg.sim.batteryCapacity) 'kWh_' ...
-        num2str(cfg.opt.statesPerKwh) 'spk.mat'];
+    if ~isfield(cfg.sim, 'batteryCapacityTotal');
+        cfg.sav.finalFileName = [cfg.sav.resultsDir filesep 'batt_' ...
+            num2str(cfg.sim.batteryCapacityPerCustomer) 'kWhPerC_' ...
+            num2str(cfg.opt.statesPerKwh) 'spk.mat'];
+    else
+        cfg.sav.finalFileName = [cfg.sav.resultsDir filesep 'batt_' ...
+            num2str(cfg.sim.batteryCapacityTotal) 'kWhTot_' ...
+            num2str(cfg.opt.statesPerKwh) 'spk.mat'];
+    end
 end
 
 
@@ -175,6 +183,17 @@ copyfile([pwd filesep 'Config.m'], [cfg.sav.resultsDir filesep ...
     'thisConfig.m']);
 else
     warning('thisConfig.m not created as location was taken');
+end
+
+%% Generate a list of nCustomers which is nInstances long
+% and maps as required:
+instance = 0;
+cfg.sim.nCustomersByInstance = zeros(cfg.sim.nInstances, 1);
+for ii = 1:length(cfg.sim.nCustomers)
+    for jj = 1:cfg.sim.nAggregates
+        instance = instance + 1;
+        cfg.sim.nCustomersByInstance(instance) = cfg.sim.nCustomers(ii);
+    end
 end
 
 end

@@ -21,9 +21,9 @@ nMethods = cfg.sim.nMethods;
 
 serialTime = dataTrain.time;
 
-%% 1) Plot the performance of the overall methods
+%% 1a) Plot the performance of the overall methods
 
-fig_1 = figure();
+fig_1a = figure();
 
 % Absolute Total Costs
 subplot(3, 2, 1);
@@ -48,7 +48,7 @@ ylabel('Relative Cost []');
 % Absolute cost savings
 subplot(3, 2, 3);
 noBatteryIdx = ismember(methodList, 'NB');
-batteryValue = repmat(totalCost(:,noBatteryIdx),[1, nMethods]) - totalCost; 
+batteryValue = repmat(totalCost(:,noBatteryIdx),[1, nMethods]) - totalCost;
 boxplot(batteryValue, methodList);
 grid on;
 xlabel('Method');
@@ -81,8 +81,82 @@ grid on;
 xlabel('Method');
 ylabel('Rel. Dmg. Cost []');
 
-print(fig_1, '-dpdf', [cfg.sav.resultsDir filesep ...
+print(fig_1a, '-dpdf', [cfg.sav.resultsDir filesep ...
     'allCostResults.pdf']);
+
+%% 1b) As above, but divide by number of customers:
+
+for nCust = cfg.sim.nCustomers
+    fig_1b = figure();
+    
+    % Instance indexes for this number of customers:
+    instanceIdxs = cfg.sim.nCustomersByInstance==nCust;
+    
+    % Absolute Total Costs
+    subplot(3, 2, 1);
+    boxplot(totalCost(instanceIdxs, :) - ...
+        totalDamageCost(instanceIdxs, :), methodList);
+    
+    grid on;
+    xlabel('Method');
+    ylabel('Total Actual Cost (excl dmg cost) [$]');
+    hold off;
+    
+    % Relative Cost Ratios
+    subplot(3,2, 2);
+    
+    % Reference method godCast
+    refMethodIdx = ismember(methodList,'PFFC');
+    relativeCost = totalCost(instanceIdxs, :)./repmat(...
+        totalCost(instanceIdxs, refMethodIdx), [1, nMethods]);
+    boxplot(relativeCost, methodList);
+    grid on;
+    xlabel('Method');
+    ylabel('Relative Cost []');
+    
+    % Absolute cost savings
+    subplot(3, 2, 3);
+    noBatteryIdx = ismember(methodList, 'NB');
+    batteryValue = repmat(totalCost(instanceIdxs,noBatteryIdx),...
+        [1, nMethods]) - totalCost(instanceIdxs, :);
+    
+    boxplot(batteryValue, methodList);
+    grid on;
+    xlabel('Method');
+    ylabel('Cost Saved (net of degradation) [$]');
+    
+    % Relative cost savings
+    subplot(3, 2, 4);
+    relativeBatteryValue = batteryValue./repmat(...
+        batteryValue(:, refMethodIdx), [1, nMethods]);
+    
+    boxplot(relativeBatteryValue, methodList);
+    grid on;
+    xlabel('Method');
+    ylabel('Rel. Nett Cost Saved []');
+    
+    % Absolute battery damage cost
+    subplot(3, 2, 5);
+    boxplot(totalDamageCost(instanceIdxs, :), methodList);
+    grid on;
+    xlabel('Method');
+    ylabel('Damage Cost [$]');
+    
+    % Relative battery damage cost
+    subplot(3, 2, 6);
+    relativeDamageCost = totalDamageCost./repmat(...
+        totalDamageCost(:, refMethodIdx), [1, nMethods]);
+    
+    boxplot(relativeDamageCost, methodList);
+    grid on;
+    xlabel('Method');
+    ylabel('Rel. Dmg. Cost []');
+    
+    print(fig_1b, '-dpdf', [cfg.sav.resultsDir filesep ...
+        'allCostResults_nCust' num2str(nCust) '.pdf']);
+    
+    close(fig_1b);
+end
 
 %% 2. For forecast-driven methods plot the MSEs of Demand forecasts
 
@@ -211,15 +285,15 @@ print(fig_7, '-dpdf', [cfg.sav.resultsDir filesep ...
 fig_8 = figure();
 subplot(1, 2, 1);
 boxplot(noiseSglRatioDem(:, forecastDrivenIdxs),...
-        'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
-    
+    'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
+
 ylabel('Demand Noise-signal Ratio');
 grid on;
 
 subplot(1, 2, 2);
 boxplot(noiseSglRatioPv(:, forecastDrivenIdxs),...
-        'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
-    
+    'labels', methodList(forecastDrivenIdxs), 'plotstyle', 'compact');
+
 ylabel('PV Noise to Signal Ratio');
 grid on;
 

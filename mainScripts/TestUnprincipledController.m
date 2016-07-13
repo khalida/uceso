@@ -47,9 +47,9 @@ cfg = Config(pwd);
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
-noiseMagnitudes = sglMagnitude.*[0, 0.25, 0.5, 1.0, 1.5, 2];   % several noise levels to run over
-tsTrainLengths = [8, 8, 16, 16, 32, 32];                           % several train lengtsh to run over
-tsTestLength = 8*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+noiseMagnitudes = sglMagnitude.*[0, 0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0];   % several noise levels to run over
+tsTrainLengths = [256, 1024];                           % several train lengtsh to run over
+tsTestLength = 64*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 
 %% Initialize results vectors
@@ -108,7 +108,11 @@ for tsTrIdx = 1:length(tsTrainLengths)
                 [floor(cfg.fc.seasonalPeriod/4), 0]);
             
             % Declare battery properties (oso)
-            battery = Battery(cfg, cfg.sim.batteryCapacity);
+            if ~isfield(cfg.sim, 'batteryCapacityTotal');
+                battery = Battery(cfg, cfg.sim.batteryCapacityPerCustomer);
+            else
+                battery = Battery(cfg, cfg.sim.batteryCapacityTotal);
+            end
             
         elseif isequal(cfg.type, 'minMaxDemand')
             % Declare battery properties (minMaxDemand)
@@ -136,9 +140,6 @@ for tsTrIdx = 1:length(tsTrainLengths)
             end
         end
         
-        timeSeriesDataDem = timeSeriesDataDem + 2.*circshift(...
-            timeSeriesDataDem, [floor(cfg.fc.seasonalPeriod/2),0]);
-        
         noiseFreeTsDem = noisySine(sglMagnitude/2, cfg.fc.seasonalPeriod,...
             0, tsTrainLength + tsTestLength);
         
@@ -150,7 +151,12 @@ for tsTrIdx = 1:length(tsTrainLengths)
         noiseFreeTsTestDem = noiseFreeTsDem((end - (tsTestLength-1)):end);
         
         if isequal(cfg.type, 'oso')
-            noiseFreeTsPv = circshift(noiseFreeTsDem, ...
+	    noiseFreeTsPv = noisySine(sglMagnitude, cfg.fc.seasonalPeriod, 0, ...
+		tsTrainLength + tsTestLength);
+
+	    noiseFreeTsPv = max(0, noiseFreeTsPv);
+
+	    noiseFreeTsPv = circshift(noiseFreeTsPv, ...
                 [floor(cfg.fc.seasonalPeriod/4), 0]);
             
             noiseFreeTsTestPv = noiseFreeTsPv((end - (tsTestLength-1)):...

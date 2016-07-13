@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=12
 #SBATCH --cpus-per-task=1
-#SBATCH --time=30:00:00
+#SBATCH --time=15:00:00
 #SBATCH --mail-user=khalid.a.abdulla@gmail.com
 #SBATCH --mail-type=ALL
 

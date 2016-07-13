@@ -6,30 +6,25 @@ nIntervalsTrain = cfg.fc.nHoursTrain*cfg.sim.stepsPerHour;
 nIntervalsTest = cfg.sim.nHoursTest*cfg.sim.stepsPerHour;
 
 if isequal(cfg.type, 'oso')
-    [unixTime1, allDemandValues] = importFilesFromFolder(...
-        [cfg.osoDataFolder filesep 'demand' filesep], cfg.sim.nInstances);
-    
-    [unixTime2, allPvValues] = importFilesFromFolder(...
-        [cfg.osoDataFolder filesep 'PV' filesep], cfg.sim.nInstances);
-    
-    if ~isequal(unixTime1, unixTime2); error('Timestamps dont match'); end;
+    % Indexes to use for oso instances:
+    [unixTime, allValues] = importFilesFromFolder(cfg);
     
     % Drop any unneeded data & package data into single structure
     dataLengthRequired = nIntervalsTrain + nIntervalsTest + ...
         2*cfg.sim.stepsPerDay;
     
-    serialTime = datetime(unixTime1, 'ConvertFrom', 'posixtime', ...
+    serialTime = datetime(unixTime, 'ConvertFrom', 'posixtime', ...
         'TimeZone', 'Australia/Sydney');
     
     serialTime = serialTime(1:dataLengthRequired);
-    allDemandValues = allDemandValues(1:dataLengthRequired,:);
-    allPvValues = allPvValues(1:dataLengthRequired,:);
+    allValues.pv = allValues.pv(1:dataLengthRequired,:);
+    allValues.demand = allValues.demand(1:dataLengthRequired,:);
     
     % Find offset required to start train, and test period at midnight
     zeroTestIdx = 49 - 2*hour(serialTime(1)) - (minute(serialTime(1))/30);
     trainIdxs = zeroTestIdx + (1:nIntervalsTrain);
-    dataTrain.demand = allDemandValues(trainIdxs, :);
-    dataTrain.pv = allPvValues(trainIdxs, :);
+    dataTrain.demand = allValues.demand(trainIdxs, :);
+    dataTrain.pv = allValues.pv(trainIdxs, :);
     dataTrain.time = serialTime(trainIdxs);
     
     firstTrIdx = max(trainIdxs) + 1;
@@ -39,8 +34,8 @@ if isequal(cfg.type, 'oso')
     % Second alignment step should not be necessary, if whole No. days
     % training and testing selected?
     testIdxs = firstTrIdx + zeroTrIdx + (1:nIntervalsTest);
-    dataTest.demand = allDemandValues(testIdxs, :);
-    dataTest.pv = allPvValues(testIdxs, :);
+    dataTest.demand = allValues.demand(testIdxs, :);
+    dataTest.pv = allValues.pv(testIdxs, :);
     dataTest.time = serialTime(testIdxs);
     
     % Test that we have 1st interval (of 48)

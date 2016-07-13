@@ -90,7 +90,13 @@ parfor instance = 1:cfg.sim.nInstances
     
     %% Battery properties
     if isequal(cfg.type, 'oso') %#ok<*PFBNS>
-        battery = Battery(cfg, cfg.sim.batteryCapacity);
+        if ~isfield(cfg.sim, 'batteryCapacityTotal')
+            battery = Battery(cfg, cfg.sim.batteryCapacityPerCustomer*...
+                cfg.sim.nCustomersByInstance(instance));
+        else
+            battery = Battery(cfg, cfg.sim.batteryCapacityTotal);
+        end
+        
     else
         battery = Battery(cfg, meanKWhs(instance)*...
             cfg.sim.batteryCapacityRatio*cfg.sim.stepsPerDay);

@@ -14,10 +14,11 @@ function [ model ] = trainForecastFreeController( cfg,  demandDataTrain,...
 % model:    MATLAB NN network model of FF controller
 
 if ~isempty(varargin)
-    if ~isequal(cfg.type, 'oso') || length(varargin) > 1
+    if ~isequal(cfg.type, 'oso') || length(varargin) > 2
         error('Wrong number of input arguments')
     else
         pvDataTrain = varargin{1};
+        nCustomer = varargin{2};
     end
 end
 
@@ -45,8 +46,14 @@ end
 
 %% Set-up parameters for on-line simulation
 if isequal(cfg.type, 'oso')
-    % Battery size fixed
-    battery = Battery(cfg, cfg.sim.batteryCapacity);
+    % Battery size fixed by number of customers:
+    
+    if ~isfield(cfg.sim, 'batteryCapacityTotal')
+        battery = Battery(cfg, cfg.sim.batteryCapacityPerCustomer*...
+            nCustomer);
+    else
+        battery = Battery(cfg, cfg.sim.batteryCapacityTotal);
+    end        
 else
     % Battery size depends on demand of the aggregation considered
     meanDemand = mean(demandDataTrain);
