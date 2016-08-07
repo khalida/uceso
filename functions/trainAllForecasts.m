@@ -32,7 +32,6 @@ switch cfg.fc.modelType
         error('Selected cfg.fc.modelType not implemented');
 end
 
-
 %% Train Models
 % Delete parrallel pool if it exists
 poolobj = gcp('nocreate');
@@ -45,7 +44,7 @@ myCluster.JobStorageLocation = tmpDirName;
 poolobj = parpool(myCluster);
 
 parfor instance = 1:cfg.sim.nInstances
-% for instance = 1:cfg.sim.nInstances
+    % for instance = 1:cfg.sim.nInstances
     
     tempModels = cell(1, cfg.sim.nMethods);     % prevent parfor issues
     tempTimeTaken = zeros(1, cfg.sim.nMethods);
@@ -72,6 +71,24 @@ parfor instance = 1:cfg.sim.nInstances
                 
                 tempTimeTaken(1, methodTypeIdx) = toc(tempTic);
                 
+            % Train Decision-Driven Forecast controller
+            case 'DDFC'
+                tempTic = tic;
+                
+                if isequal(cfg.type, 'oso')
+                    tempModels{1, methodTypeIdx} = ...
+                        trainDecisionDrivenForecast(cfg, ...
+                        dataTrain.demand(:, instance), ...
+                        dataTrain.pv(:, instance), ...
+                        cfg.sim.nCustomersByInstance(instance));
+                else
+                    tempModels{1, methodTypeIdx} = ...
+                        trainDecisionDrivenForecast(cfg, ...
+                        dataTrain.demand(:, instance));
+                end
+                
+                tempTimeTaken(1, methodTypeIdx) = toc(tempTic);
+                
                 % Skip if method doesn't need training
             case 'NPFC'
                 continue;
@@ -90,7 +107,7 @@ parfor instance = 1:cfg.sim.nInstances
                 tempTic = tic;
                 
                 tempModels{1, methodTypeIdx}.demand = trainHandle(...
-                    cfg, dataTrain.demand(:, instance));
+                    cfg, dataTrain.demand(:, instance), );
                 
                 if isequal(cfg.type, 'oso')
                     tempModels{1, methodTypeIdx}.pv = trainHandle(...

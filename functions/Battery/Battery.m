@@ -229,6 +229,18 @@ classdef Battery < handle
             end
         end
         
+        % Set SoC of battery to a specific value [kWh]
+        function resetTo(this, value)
+            if isequal(this.cfg.type, 'oso')
+                this.state = floor(value/this.increment) + 1;
+                this.SoC = (this.state-1)*this.increment;
+                this.cumulativeDamage = this.eps;
+                this.cumulativeValue = 0;
+            else
+                this.SoC = value;
+            end
+        end
+        
         function randomReset(this)
             if isequal(this.cfg.type, 'oso')
                 this.state = randsample(this.statesInt, 1);

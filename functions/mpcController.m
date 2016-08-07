@@ -235,6 +235,11 @@ for idx = 1:nIdxs;
     
     % Shift demandDelays (and add current demand)
     demandDelays = [demandDelays(2:end); demandNow];
+    
+    % DEBUGGING:
+    if mod(idx, 1000) == 0
+        disp(['Done idx: ' num2str(idx) '/' num2str(nIdxs)]);
+    end
 end
 
 %% Plot time-series behavior for debugging

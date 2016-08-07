@@ -10,11 +10,11 @@
 
 function cfg = Config(pwd)
 
-cfg.type = 'minMaxDemand';   % 'minMaxDemand', 'oso'
-rng(42);            % For repeatability
+cfg.type = 'oso';               % 'minMaxDemand', 'oso'
+rng(42);                        % For repeatability
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
-nProcAvail = 12;
+nProcAvail = 4;
 
 % Location of input data files
 [parentFold, ~, ~] = fileparts(pwd);
@@ -47,8 +47,8 @@ mkdir(cfg.sav.resultsDir);
 
 
 %% cfg.sim: Simulation Settings
-cfg.sim.nCustomers = [1, 4, 16, 64];
-cfg.sim.nAggregates = 3;
+cfg.sim.nCustomers = [4, 64];
+cfg.sim.nAggregates = 2;
 cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 
 if isequal(cfg.type, 'minMaxDemand')
@@ -74,7 +74,7 @@ cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
 cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % List of methods to run:
-cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC', 'IMFC', 'PFFC'};
+cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC', 'PFFC'};  %  {'NB', 'SP', 'NPFC', 'MFFC', 'DDFC' 'IMFC', 'PFFC'};
 
 %% cfg.fc: Forecast, and forecast training Settings
 cfg.fc.nDaysTrain = 38*7;     % days of historic demand to train on
@@ -84,7 +84,7 @@ cfg.fc.modelType = 'FFNN';    % {'RNN', 'MLR', 'RNN', '...'}
 cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
-cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
+cfg.fc.nNodes = [50 50];                 % No. of nodes for NN, forests for RF
 cfg.fc.nStart = 3;                  % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
@@ -98,12 +98,14 @@ cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
 
 % Forecast-free options
-cfg.fc.nTrainShuffles = 25; %25;             % # of shuffles to consider
+cfg.fc.nTrainShuffles = 25;             % # of shuffles to consider
 cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % day-pairs to swap
-cfg.fc.nNodesFF = 50;                   % No. of nodes in FF ctrler
+cfg.fc.nNodesFF = [50 50];                   % No. of nodes in FF ctrler
 cfg.fc.knowFutureFF = false;            % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
 cfg.fc.randomizeInterval = 7;
+cfg.fc.ddForecastDraws = 2;
+% cfg.fc.batchSize = 100;
 
 
 %% cfg.opt: Optimization settings

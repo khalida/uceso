@@ -47,8 +47,8 @@ cfg = Config(pwd);
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
-noiseMagnitudes = sglMagnitude.*[0, 0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0];   % several noise levels to run over
-tsTrainLengths = [256, 1024];                           % several train lengtsh to run over
+noiseMagnitudes = sglMagnitude.*[0, 0.125, 0.25, 0.5];   % several noise levels to run over
+tsTrainLengths = [64 256];                           % several train lengtsh to run over
 tsTestLength = 64*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 

@@ -6,7 +6,7 @@ function [bestDischargeStep, bestCTG] = controllerDp(cfg, demForecast, ...
 
 % Positive b is DISCHARGING the battery!
 
-persistent doneHorizonPlot;
+% persistent doneHorizonPlot;
 
 %% Initialise Values
 nStates = length(battery.statesInt);
@@ -22,6 +22,14 @@ b_min = -battery.maxChargeRate/cfg.sim.stepsPerHour; % kWh/interval
 b_max = battery.maxChargeRate/cfg.sim.stepsPerHour;  % kWh/interval
 b_min_int = floor(b_min/battery.increment);       % No. charge increments
 b_max_int = ceil(b_max/battery.increment);        % No. charge increments
+
+% Get the grid prices:
+importPrices = zeros(nStages,1);
+exportPrices = zeros(nStages,1);
+for t = 1:nStages
+    [importPrices(t), exportPrices(t)] = ...
+        getGridPrices(mod(hourNow+t-1, cfg.sim.horizon));
+end
 
 % Work back through previous stages and find minimum cost to go
 % store the chosen charge decision in ST_b
@@ -52,10 +60,6 @@ for t = nStages:-1:1
             % Find energy from grid during interval
             g_t = demForecast(t)- b_hat - pvForecast(t);
             
-            % Get import and export prices (based on time-of-day)
-            [importPrice, exportPrice] = getGridPrices(...
-                mod(hourNow+t-1, cfg.sim.horizon));
-            
             % Find battery damage cost
             %fracDegradation = calcFracDegradation(cfg, battery, q, ...
             %    thisB);
@@ -67,8 +71,8 @@ for t = nStages:-1:1
                 cfg.bat.costPerKwhUsed;
             
             % Total state transition cost for this decision from here
-            thisSTC = importPrice*max(0,g_t) - ...
-                exportPrice*max(0,-g_t) + damageCost;
+            thisSTC = importPrices(t)*max(0,g_t) - ...
+                exportPrices(t)*max(0,-g_t) + damageCost;
             
             % Total cost-to-got for this decision from here to end
             thisCTG = thisSTC + CTG(q-thisB, t+1);
@@ -120,16 +124,16 @@ if(q_t_state(nStages) < 1 || q_t_state(nStages)>nStates)
     error('Battery state out of bounds');
 end
 
-% Compute the bast integer state change of battery
+% Compute the best integer state change of battery
 bestDischargeStep =  ST_b(battery.state, 1);
 bestCTG = CTG(battery.state, 1);
 
-% Produce plot of optimal horizon decisions for 1st interval:
-if isempty(doneHorizonPlot)
-    plotHorizon(demForecast, pvForecast, q_t_state, hourNow, ...
-        gridImport);
-    
-    doneHorizonPlot = true;
-end
+% DEBUG: Produce plot of optimal horizon decisions for 1st interval:
+% if isempty(doneHorizonPlot)
+%     plotHorizon(demForecast, pvForecast, q_t_state, hourNow, ...
+%         gridImport);
+%     
+%     doneHorizonPlot = true;
+% end
 
 end

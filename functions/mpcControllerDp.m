@@ -211,8 +211,7 @@ for idx = 1:nIdxs;
     
     % DEBUGGING:
     if mod(idx, 1000) == 0
-        disp('idx done: ');
-        disp(idx);
+        disp(['Done idx: ' num2str(idx) '/' num2str(nIdxs)]);
     end
 end
 
