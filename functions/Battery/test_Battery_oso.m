@@ -17,7 +17,7 @@ cfg.bat.nominalDoD = 80;            % 10% - 90% cycle
 cfg.bat.nominalSoCav = 50;
 cfg.bat.maxLifeHours = 7*365.25*24; % 7yrs
 
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 
 % Check single charge correct of 1kWh
 startingEnergy = battery.SoC;
@@ -25,7 +25,7 @@ battery.chargeStep(10, 0);
 pass1 = isequal(battery.SoC, startingEnergy + 1);
 
 % Check multiple charge correct
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 chargeBy = randi([-5, 5], [5, 1]);
 startingEnergy = battery.SoC;
 for idx = 1:length(chargeBy)
@@ -36,7 +36,7 @@ pass2 = closeEnough(battery.SoC, startingEnergy + sum(chargeBy)*...
 
 % Check SoC violation works
 pass3 = false;
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 try
     battery.chargeStep(100, 0);
 catch ME
@@ -46,7 +46,7 @@ end
 % Check RoC violation works
 pass4 = false;
 cfg.sim.batteryChargingFactor = 1e-5;
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 try
     battery.chargeStep(1);
 catch ME

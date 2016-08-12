@@ -47,7 +47,7 @@ for eachLag = 1:nLags
     thisNet = trainFfnn(cfg, featVecsTrain, respVecsTrain);
     testResp = forecastFfnn(cfg, thisNet, featVecsVal);
     
-    thisPerf = mse(respVecsVal(1:minimizeOverFirst, :), ....
+    thisPerf = mse(respVecsVal(1:minimizeOverFirst, :), ...
         testResp(1:minimizeOverFirst, :), 2);
     
     if thisPerf < bestPerf

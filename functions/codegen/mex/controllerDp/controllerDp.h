@@ -27,7 +27,8 @@
 
 /* Function Declarations */
 extern void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const
-  real_T demForecast[48], const real_T pvForecast[48], const struct5_T *battery,
+  real_T demForecast_data[], const int32_T demForecast_size[2], const real_T
+  pvForecast_data[], const int32_T pvForecast_size[2], const struct5_T *battery,
   real_T hourNow, real_T *bestDischargeStep, real_T *bestCTG);
 
 #endif

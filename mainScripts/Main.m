@@ -1,5 +1,6 @@
 %% Main Script for UCESO
-%  (Unprincipled Controllers for Energy Storage Optimization).
+%  (Unprincipled Controllers for Energy Storage Optimization)
+
 
 %% (Tidy up &) Load Configuration options
 clearvars; close all; clc;
@@ -13,7 +14,7 @@ LoadFunctions;
 
 %% Load Data
 disp('======= LOADING DATA =======');
-[ dataTrain, dataTest ] = loadData( cfg );
+[ dataTrain, dataTest, cfg ] = loadData( cfg );
 
 
 %% Train Forecasts (& forecast-free controller)

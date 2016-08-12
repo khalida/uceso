@@ -1,4 +1,4 @@
-function plotHorizon(demandForecast, pvForecast, q_t_state, hourNow, ...
+function plotHorizon(cfg, demandForecast, pvForecast, q_t_state, hourNow, ...
     gridImport)
     
 %plotHorizon: Plot a DP horizon solution:
@@ -21,7 +21,7 @@ importPrices = zeros(nStages,1);
 exportPrices = zeros(nStages,1);
 for t = 0:(nStages-1)
     [importPrices(t+1), exportPrices(t+1)] = ...
-        getGridPrices(mod(hourNow+t, 48));
+        getGridPrices(cfg, mod(hourNow+t, cfg.fc.seasonalPeriod));
 end
 plot(importPrices, '.-', 'MarkerSize', 20);
 hold on;

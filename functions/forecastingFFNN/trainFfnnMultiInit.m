@@ -14,7 +14,6 @@ function bestModel = trainFfnnMultiInit(cfg, featVecs, respVecs)
 %% OUTPUTS:
 % bestModel: MATLAB trained NN object (best from multiple initializations)
 
-
 %% Divide data for training and testing
 nObs = size(featVecs,2);
 nObsTrain = floor(nObs*cfg.fc.trainRatio);
@@ -37,7 +36,10 @@ h = waitbar(0, 'Running trainFfnnMultiInit');
 for iStart = 1:cfg.fc.nStart
     waitbar(iStart/cfg.fc.nStart, h);
     allNets{iStart} = trainFfnn(cfg, featVecsTrain, respVecsTrain);
-    modelResponses{iStart} = allNets{iStart}(featVecsVal);
+    
+    modelResponses{iStart} = forecastFfnn(cfg, allNets{iStart},...
+        featVecsVal);
+    
     performance(iStart) = mean(mse(respVecsVal, ...
         modelResponses{iStart}, 2));
 end

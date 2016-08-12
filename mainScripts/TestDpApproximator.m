@@ -36,7 +36,7 @@ cfg.fc.suppressOutput = false;
 cfg.fc.maxTime = 20*60;
 
 % Initilaize the Battery Object
-battery = Battery(cfg, 0.5);
+battery = Battery(getCfgForController(cfg), 0.5);
 nObservations = 100000;
 
 %% 2) Generate (random) PV and demand data;
@@ -57,12 +57,6 @@ pvData = max(normalNumbers(muPv, sigmaPv, [nObservations, ...
 batteryStates = randsample(battery.statesInt, nObservations, true)';
 hourNumbers = randsample(1:cfg.sim.horizon, nObservations, true)';
 
-% Crete non-class based struct to replicate battery
-batteryFields = fieldnames(battery);
-for fieldIdx = 1:length(batteryFields)
-    thisField = batteryFields{fieldIdx};
-    nonClassBatt.(thisField) = battery.(thisField);
-end
 
 %% 4) Find DP solutions;
 
@@ -71,8 +65,9 @@ runDpTimer = tic;
 dpSolutionsMex = zeros(nObservations, 1);
 for ii = 1:nObservations
     nonClassBatt.state = batteryStates(ii);
-    dpSolutionsMex(ii) = controllerDp_mex(cfg, demandData(ii, :), ...
-        pvData(ii, :), nonClassBatt, hourNumbers(ii));
+    dpSolutionsMex(ii) = controllerDp_mex(getCfgForController(cfg),...
+        demandData(ii, :), pvData(ii, :), battery.getStruct(),...
+        hourNumbers(ii));
 end
 disp(['Running DP in MEX took: ' num2str(toc(runDpTimer))]);
 

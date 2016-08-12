@@ -14,11 +14,16 @@ function [ forecast ] = forecastFfnn(cfg, trainedModel, featVecs)
 %% OUPUT:
 % forecast:     Output forecast [nResponses x nObs]
 
-nLags = trainedModel.inputs{1}.size;
-if nLags ~= cfg.fc.nLags
-    error('Model with incorrect No. of lags found');
+% nLags = trainedModel.inputs{1}.size;
+% if nLags ~= cfg.fc.nLags
+%     error('Model with incorrect No. of lags found');
+% end
+% x = featVecs((end - nLags + 1):end, :);
+x = featVecs(:, :);
+if isfield(trainedModel.userdata, 'idxsUsed')
+    forecast = trainedModel(x(trainedModel.userdata.idxsUsed, :));
+else
+    forecast = trainedModel(x(:, :));
 end
-x = featVecs((end - nLags + 1):end, :);
-forecast = trainedModel(x);
 
 end

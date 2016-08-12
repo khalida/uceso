@@ -8,7 +8,7 @@ cfg.sim.batteryChargingFactor = 1;
 cfg.sim.eps = 1e-8;
 cfg.sim.stepsPerHour = 2;
 
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 
 % Check single charge correct
 startingEnergy = battery.SoC;
@@ -16,7 +16,7 @@ battery.chargeBy(1);
 pass1 = isequal(battery.SoC, startingEnergy + 1);
 
 % Check multiple charge correct
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 chargeBy = rand(5, 1)-0.5;
 startingEnergy = battery.SoC;
 for idx = 1:length(chargeBy)
@@ -27,7 +27,7 @@ pass2 = closeEnough(battery.SoC, startingEnergy + sum(chargeBy), ...
 
 % Check SoC violation works
 pass3 = false;
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 try
     battery.chargeBy(10);
 catch ME
@@ -37,7 +37,7 @@ end
 % Check RoC violation works
 pass4 = false;
 cfg.sim.batteryChargingFactor = 1e-5;
-battery = Battery(cfg, 10);
+battery = Battery(getCfgForController(cfg), 10);
 try
     battery.chargeBy(1);
 catch ME

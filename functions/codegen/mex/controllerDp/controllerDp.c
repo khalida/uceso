@@ -224,11 +224,12 @@ static emlrtBCInfo bb_emlrtBCI = { -1, -1, 107, 38, "ST_b", "controllerDp",
   "C:\\LocalData\\Documents\\Documents\\PhD\\21_Projects\\2016_04_07_uceso\\functions\\controllerDp.m",
   0 };
 
-static emlrtBCInfo cb_emlrtBCI = { 1, 48, 113, 21, "demForecast", "controllerDp",
+static emlrtBCInfo cb_emlrtBCI = { -1, -1, 113, 21, "demForecast",
+  "controllerDp",
   "C:\\LocalData\\Documents\\Documents\\PhD\\21_Projects\\2016_04_07_uceso\\functions\\controllerDp.m",
   0 };
 
-static emlrtBCInfo db_emlrtBCI = { 1, 48, 113, 45, "pvForecast", "controllerDp",
+static emlrtBCInfo db_emlrtBCI = { -1, -1, 113, 45, "pvForecast", "controllerDp",
   "C:\\LocalData\\Documents\\Documents\\PhD\\21_Projects\\2016_04_07_uceso\\functions\\controllerDp.m",
   0 };
 
@@ -260,11 +261,11 @@ static emlrtBCInfo kb_emlrtBCI = { -1, -1, 90, 16, "CTG", "controllerDp",
   "C:\\LocalData\\Documents\\Documents\\PhD\\21_Projects\\2016_04_07_uceso\\functions\\controllerDp.m",
   0 };
 
-static emlrtBCInfo lb_emlrtBCI = { 1, 48, 61, 19, "demForecast", "controllerDp",
+static emlrtBCInfo lb_emlrtBCI = { -1, -1, 61, 19, "demForecast", "controllerDp",
   "C:\\LocalData\\Documents\\Documents\\PhD\\21_Projects\\2016_04_07_uceso\\functions\\controllerDp.m",
   0 };
 
-static emlrtBCInfo mb_emlrtBCI = { 1, 48, 61, 43, "pvForecast", "controllerDp",
+static emlrtBCInfo mb_emlrtBCI = { -1, -1, 61, 43, "pvForecast", "controllerDp",
   "C:\\LocalData\\Documents\\Documents\\PhD\\21_Projects\\2016_04_07_uceso\\functions\\controllerDp.m",
   0 };
 
@@ -305,9 +306,10 @@ static void error(const emlrtStack *sp, const mxArray *b, emlrtMCInfo *location)
 }
 
 void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
-                  demForecast[48], const real_T pvForecast[48], const struct5_T *
-                  battery, real_T hourNow, real_T *bestDischargeStep, real_T
-                  *bestCTG)
+                  demForecast_data[], const int32_T demForecast_size[2], const
+                  real_T pvForecast_data[], const int32_T pvForecast_size[2],
+                  const struct5_T *battery, real_T hourNow, real_T
+                  *bestDischargeStep, real_T *bestCTG)
 {
   emxArray_real_T *CTG;
   int32_T varargin_2;
@@ -341,8 +343,8 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
   real_T b_hat;
   int32_T i1;
   int32_T i2;
-  real_T g_t;
   int32_T i3;
+  real_T g_t;
   real_T thisCTG;
   boolean_T guard2 = false;
   static const char_T b_varargin_1[27] = { 'B', 'a', 't', 't', 'e', 'r', 'y',
@@ -489,7 +491,7 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
     }
 
     st.site = &emlrtRSI;
-    if ((x > 47.0) || (x < 0.0)) {
+    if ((x > cfg->fc.seasonalPeriod - 1.0) || (x < 0.0)) {
       b_st.site = &d_emlrtRSI;
       for (i0 = 0; i0 < 27; i0++) {
         u[i0] = varargin_1[i0];
@@ -505,12 +507,12 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
 
     /*  getGridPrices: Look-up function to return the grid-prices: */
     /*  $/kWh */
-    d0 = 0.1;
+    d0 = cfg->sim.exportPriceLow;
 
     /*  $/kWh */
     /*  set imports to peak tarriff if required 7AM = 10PM */
-    if ((x >= 14.0) && (x <= 43.0)) {
-      d0 = 0.4;
+    if ((x >= cfg->sim.firstHighPeriod) && (x <= cfg->sim.lastHighPeriod)) {
+      d0 = cfg->sim.exportPriceHigh;
     }
 
     i0 = importPrices->size[0];
@@ -524,7 +526,7 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
       emlrtDynamicBoundsCheckR2012b(t + 1, 1, i0, &qb_emlrtBCI, sp);
     }
 
-    exportPrices->data[t] = 0.05;
+    exportPrices->data[t] = cfg->sim.importPrice;
     t++;
     if (*emlrtBreakCheckR2012bFlagVar != 0) {
       emlrtBreakCheckR2012b(sp);
@@ -567,17 +569,19 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
         }
 
         /*  Find energy from grid during interval */
-        i1 = (int32_T)b_t;
-        if (!((i1 >= 1) && (i1 <= 48))) {
-          emlrtDynamicBoundsCheckR2012b(i1, 1, 48, &lb_emlrtBCI, sp);
-        }
-
+        i1 = demForecast_size[0] * demForecast_size[1];
         i2 = (int32_T)b_t;
-        if (!((i2 >= 1) && (i2 <= 48))) {
-          emlrtDynamicBoundsCheckR2012b(i2, 1, 48, &mb_emlrtBCI, sp);
+        if (!((i2 >= 1) && (i2 <= i1))) {
+          emlrtDynamicBoundsCheckR2012b(i2, 1, i1, &lb_emlrtBCI, sp);
         }
 
-        g_t = (demForecast[i1 - 1] - b_hat) - pvForecast[i2 - 1];
+        i1 = pvForecast_size[0] * pvForecast_size[1];
+        i3 = (int32_T)b_t;
+        if (!((i3 >= 1) && (i3 <= i1))) {
+          emlrtDynamicBoundsCheckR2012b(i3, 1, i1, &mb_emlrtBCI, sp);
+        }
+
+        g_t = (demForecast_data[i2 - 1] - b_hat) - pvForecast_data[i3 - 1];
 
         /*  Find battery damage cost */
         /* fracDegradation = calcFracDegradation(cfg, battery, q, ... */
@@ -812,24 +816,26 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
         - 1] * battery->increment / cfg->sim.batteryEtaC;
     }
 
-    i0 = (int32_T)(2.0 + (real_T)t);
-    if (!((i0 >= 1) && (i0 <= 48))) {
-      emlrtDynamicBoundsCheckR2012b(i0, 1, 48, &cb_emlrtBCI, sp);
-    }
-
+    i0 = demForecast_size[0] * demForecast_size[1];
     i1 = (int32_T)(2.0 + (real_T)t);
-    if (!((i1 >= 1) && (i1 <= 48))) {
-      emlrtDynamicBoundsCheckR2012b(i1, 1, 48, &db_emlrtBCI, sp);
+    if (!((i1 >= 1) && (i1 <= i0))) {
+      emlrtDynamicBoundsCheckR2012b(i1, 1, i0, &cb_emlrtBCI, sp);
     }
 
-    i2 = exportPrices->size[0];
+    i0 = pvForecast_size[0] * pvForecast_size[1];
+    i2 = (int32_T)(2.0 + (real_T)t);
+    if (!((i2 >= 1) && (i2 <= i0))) {
+      emlrtDynamicBoundsCheckR2012b(i2, 1, i0, &db_emlrtBCI, sp);
+    }
+
+    i0 = exportPrices->size[0];
     i3 = (int32_T)(2.0 + (real_T)t);
-    if (!((i3 >= 1) && (i3 <= i2))) {
-      emlrtDynamicBoundsCheckR2012b(i3, 1, i2, &eb_emlrtBCI, sp);
+    if (!((i3 >= 1) && (i3 <= i0))) {
+      emlrtDynamicBoundsCheckR2012b(i3, 1, i0, &eb_emlrtBCI, sp);
     }
 
-    exportPrices->data[i3 - 1] = (demForecast[i0 - 1] - b_hat) - pvForecast[i1 -
-      1];
+    exportPrices->data[i3 - 1] = (demForecast_data[i1 - 1] - b_hat) -
+      pvForecast_data[i2 - 1];
     i0 = importPrices->size[0];
     i1 = (int32_T)(2.0 + (real_T)t);
     if (!((i1 >= 1) && (i1 <= i0))) {
@@ -984,9 +990,9 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
 
   *bestCTG = CTG->data[i1 - 1];
 
-  /*  DEBUG: Produce plot of optimal horizon decisions for 1st interval: */
+  /*  % DEBUG: Produce plot of optimal horizon decisions for 1st interval: */
   /*  if isempty(doneHorizonPlot) */
-  /*      plotHorizon(demForecast, pvForecast, q_t_state, hourNow, ... */
+  /*      plotHorizon(cfg, demForecast, pvForecast, q_t_state, hourNow, ... */
   /*          gridImport); */
   /*       */
   /*      doneHorizonPlot = true; */

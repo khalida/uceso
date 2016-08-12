@@ -44,12 +44,23 @@ plotEachTrainLength = true;  %#ok<*UNRCH>
 % Load from Config():
 cfg = Config(pwd);
 
+% Reduce dimensionality of data; assume we have 6-hour time-steps
+cfg.sim.horizon = 6;
+cfg.fc.seasonalPeriod = 6;
+cfg.fc.nLags = 6;
+cfg.sim.stepsPerHour = 0.25;
+cfg.sim.stepsPerDay = 6;
+cfg.fc.minimizeOverFirst = 6;
+cfg.sim.firstHighPeriod = 2;
+cfg.sim.lastHighPeriod = 5;
+
+cfg.fc.lagsToInclude = 1:cfg.fc.nLags;
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
 noiseMagnitudes = sglMagnitude.*[0, 0.125, 0.25, 0.5];   % several noise levels to run over
-tsTrainLengths = [64 256];                           % several train lengtsh to run over
-tsTestLength = 64*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+tsTrainLengths = [128 256];                           % several train lengtsh to run over
+tsTestLength = 256*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 
 %% Initialize results vectors
@@ -109,14 +120,17 @@ for tsTrIdx = 1:length(tsTrainLengths)
             
             % Declare battery properties (oso)
             if ~isfield(cfg.sim, 'batteryCapacityTotal');
-                battery = Battery(cfg, cfg.sim.batteryCapacityPerCustomer);
+                battery = Battery(getCfgForController(cfg),...
+                    cfg.sim.batteryCapacityPerCustomer);
             else
-                battery = Battery(cfg, cfg.sim.batteryCapacityTotal);
+                battery = Battery(getCfgForController(cfg),...
+                    cfg.sim.batteryCapacityTotal);
             end
             
         elseif isequal(cfg.type, 'minMaxDemand')
             % Declare battery properties (minMaxDemand)
-            battery = Battery(cfg, avgLoad*cfg.sim.batteryCapacityRatio*...
+            battery = Battery(getCfgForController(cfg),...
+                avgLoad*cfg.sim.batteryCapacityRatio*...
                 cfg.sim.stepsPerDay);
         else
             error('type of optimization not implemented yet');
@@ -151,12 +165,12 @@ for tsTrIdx = 1:length(tsTrainLengths)
         noiseFreeTsTestDem = noiseFreeTsDem((end - (tsTestLength-1)):end);
         
         if isequal(cfg.type, 'oso')
-	    noiseFreeTsPv = noisySine(sglMagnitude, cfg.fc.seasonalPeriod, 0, ...
-		tsTrainLength + tsTestLength);
-
-	    noiseFreeTsPv = max(0, noiseFreeTsPv);
-
-	    noiseFreeTsPv = circshift(noiseFreeTsPv, ...
+            noiseFreeTsPv = noisySine(sglMagnitude, cfg.fc.seasonalPeriod, 0, ...
+                tsTrainLength + tsTestLength);
+            
+            noiseFreeTsPv = max(0, noiseFreeTsPv);
+            
+            noiseFreeTsPv = circshift(noiseFreeTsPv, ...
                 [floor(cfg.fc.seasonalPeriod/4), 0]);
             
             noiseFreeTsTestPv = noiseFreeTsPv((end - (tsTestLength-1)):...
@@ -199,10 +213,17 @@ for tsTrIdx = 1:length(tsTrainLengths)
                 exp] = mpcControllerDp(cfg, [], godCastTrainDem,...
                 trainDemandData, godCastTrainPv, trainPvData,...
                 demandDelays, pvDelays, battery, runControl);
+            
+            % featVec = [nLag prev dem, (demandNow), nLag prev pv, ...
+            % (pvNow), SoC, hourNum]
+            
         else
             [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(...
                 cfg, [], godCastTrainDem, trainDemandData, demandDelays,...
                 battery, runControl);
+            
+            % featVec = [demandDelay; stateOfCharge; (demandNow); ...
+            % peakSoFar];
         end
         
         runControl = rmfield(runControl, 'randomizeInterval');
@@ -231,7 +252,9 @@ for tsTrIdx = 1:length(tsTrainLengths)
         % optimiser, nothing to do with if controller works!)
         if plotEachTrainLength
             figure();
-            estimatedRespVecsVal = ffController(featVecsVal);
+            estimatedRespVecsVal = forecastFfnn(cfg, ffController, ...
+                featVecsVal);
+            
             plotregression(respVecsVal, estimatedRespVecsVal);
             title('Trained FF Controller i/o mapping perf.');
             saveas(gcf, [cfg.sav.resultsDir filesep 'reg_nseIdx'...

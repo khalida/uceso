@@ -41,11 +41,12 @@ if ~isempty(varargin)
             % states)
             if ~isfield(cfg.sim, 'batteryCapacityTotal')
                 % Battery size fixed by number of customers:
-                battery = Battery(cfg, cfg.sim.batteryCapacityPerCustomer*...
-                    nCustomer);
+                battery = Battery(getCfgForController(cfg),...
+                    cfg.sim.batteryCapacityPerCustomer*nCustomer);
             else
                 % Constant overall battery size
-                battery = Battery(cfg, cfg.sim.batteryCapacityTotal);
+                battery = Battery(getCfgForController(cfg),...
+                    cfg.sim.batteryCapacityTotal);
             end
             randIdxs = randsample(length(battery.statesKwh), ...
                 size(featVecs, 2), true);

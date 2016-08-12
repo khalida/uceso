@@ -1,58 +1,41 @@
 %%  ==== UCESO: Unprincipled Controllers for Energy Storage Operation ====
 %% Global Config File
 
-%% Save all configuration options in 'cfg' structure, divided into
-% cfg.fc:   for forecast settings
-% cfg.opt:  for optimization settings
-% cfg.sim:  for simulation settings
-% cfg.plt:  for plotting settings
-% cfg.sav:  for saving settings
+%% Set all configuration options in 'cfg' structure, divided into
+% cfg.fc:   forecast settings
+% cfg.opt:  optimization settings
+% cfg.sim:  simulation settings
+% cfg.bat:  properoties of the battery (some are under cfg.sim)
+% cfg.plt:  plotting settings
+% cfg.sav:  saving settings
 
 function cfg = Config(pwd)
 
-cfg.type = 'oso';               % 'minMaxDemand', 'oso'
-rng(42);                        % For repeatability
+rng(42);            % For repeatability
+cfg.type = 'oso';   % Problem being solved: 'minMaxDemand', 'oso'
+cfg.description = '30minInt_moreCust';
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
 nProcAvail = 4;
 
-% Location of input data files
-[parentFold, ~, ~] = fileparts(pwd);
-
-if isequal(cfg.type, 'minMaxDemand')
-    cfg.dataFileWithPath = [parentFold filesep 'data' filesep 'dataMmd'...
-        filesep 'demand_3639.mat'];
-else
-    cfg.osoDataFolder = [parentFold filesep 'data' filesep 'dataOso'];
-end
-
-%% cfg.sav: Settings for Saving Results
-timeStart = clock;
-disp('Time started: '); disp(timeStart);
-
-% Create timeString for folder in which to save data:
-timeString = [num2str(timeStart(1)), '_',...
-    num2str(timeStart(2),'%0.2d'), '_', ...
-    num2str(timeStart(3),'%0.2d'), '_', num2str(timeStart(4),'%0.2d'), ...
-    num2str(timeStart(5),'%0.2d')];
-
-if isequal(cfg.type, 'minMaxDemand')
-    cfg.sav.resultsDir = [parentFold filesep 'resultsMmd' filesep...
-        timeString];
-else
-    cfg.sav.resultsDir = [parentFold filesep 'resultsOso' filesep...
-        timeString];
-end
-mkdir(cfg.sav.resultsDir);
-
-
 %% cfg.sim: Simulation Settings
-cfg.sim.nCustomers = [4, 64];
+% Horizon length, in intervals:
+cfg.sim.stepsPerHour = 2;
+cfg.sim.hoursPerDay = 24;
+cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
+cfg.sim.nCustomers = [4, 114];
 cfg.sim.nAggregates = 2;
-cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 
+cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
+cfg.sim.nDaysTest = 50*7;           % days to run simulation for
+cfg.sim.eps = 1e-4;                 % Threshold for constraint checking
+cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
+
+
+% sim settings specific to the two-types of control problem:
 if isequal(cfg.type, 'minMaxDemand')
-    cfg.sim.batteryCapacityRatio = 0.05;  % fraction of daily mean demand
+    % fraction of daily mean demand of the aggregation
+    cfg.sim.batteryCapacityRatio = 0.05;  
 else
     % Battery properties for Oso study only
     cfg.sim.batteryCapacityPerCustomer = 2;
@@ -62,29 +45,26 @@ else
     cfg.sim.batteryEtaD = 0.94;
     cfg.sim.updateBattValue = false;
     cfg.sim.minCostDiff = 1e-6;
+    cfg.sim.importPrice = 0.05;
+    cfg.sim.exportPriceHigh = 0.4;
+    cfg.sim.exportPriceLow = 0.1;
+    cfg.sim.firstHighPeriod = 7;
+    cfg.sim.lastHighPeriod = 21;
 end
-cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
-cfg.sim.nDaysTest = 38*7;           % days to run simulation for
-cfg.sim.stepsPerHour = 2;           % 30-minutely data
-cfg.sim.hoursPerDay = 24;
-cfg.sim.eps = 1e-4;                 % Threshold for constraint checking
-cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
-
-% Horizon length, in intervals:
-cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % List of methods to run:
-cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC', 'PFFC'};  %  {'NB', 'SP', 'NPFC', 'MFFC', 'DDFC' 'IMFC', 'PFFC'};
+%  {'NB', 'SP', 'NPFC', 'MFFC', 'DDFC' 'IMFC', 'PFFC'};
+cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC','IMFC', 'PFFC'};  
 
 %% cfg.fc: Forecast, and forecast training Settings
-cfg.fc.nDaysTrain = 38*7;     % days of historic demand to train on
+cfg.fc.nDaysTrain = 50*7;     % days of historic demand to train on
 cfg.fc.modelType = 'FFNN';    % {'RNN', 'MLR', 'RNN', '...'}
 
 % Seasonal period for NP forecast, in intervals
 cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
-cfg.fc.nNodes = [50 50];                 % No. of nodes for NN, forests for RF
+cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
 cfg.fc.nStart = 3;                  % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
@@ -96,16 +76,18 @@ cfg.fc.clipNegative = true;         % Prevent output fcasts from being -ve
 cfg.fc.perfDiffThresh = 0.05;           % Performance diff. to notify of
 cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
+cfg.fc.lagsToInclude = 1:cfg.fc.nLags;
 
 % Forecast-free options
-cfg.fc.nTrainShuffles = 25;             % # of shuffles to consider
+cfg.fc.nTrainShuffles = 30;             % # of shuffles to consider
 cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % day-pairs to swap
-cfg.fc.nNodesFF = [50 50];                   % No. of nodes in FF ctrler
+cfg.fc.nNodesFF = 50;                   % No. of nodes in FF ctrler
 cfg.fc.knowFutureFF = false;            % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
 cfg.fc.randomizeInterval = 7;
-cfg.fc.ddForecastDraws = 2;
+% cfg.fc.ddForecastDraws = 2;
 % cfg.fc.batchSize = 100;
+cfg.fc.randTrainIdx = true;             % whether to randomize training indexes
 
 
 %% cfg.opt: Optimization settings
@@ -134,8 +116,39 @@ cfg.bat.costPerKwhUsed = 0.15;      % fixed cost for charge and discharge of 1kW
 cfg.plt.visible = 'on';             % Whether to plot vizible output
 
 
+%% Location of input data:
+[parentFold, ~, ~] = fileparts(pwd);
+
+if isequal(cfg.type, 'minMaxDemand')
+    cfg.dataFileWithPath = [parentFold filesep 'data' filesep 'dataMmd'...
+        filesep 'demand_3639.mat'];
+else
+    cfg.osoDataFolder = [parentFold filesep 'data' filesep 'dataOso'];
+end
+
+%% cfg.sav: Location of input/output files:
+timeStart = clock;
+disp('Time started: '); disp(timeStart);
+
+% Create timeString for folder in which to save data:
+timeString = [num2str(timeStart(1)), '_',...
+    num2str(timeStart(2),'%0.2d'), '_', ...
+    num2str(timeStart(3),'%0.2d'), '_', num2str(timeStart(4),'%0.2d'), ...
+    num2str(timeStart(5),'%0.2d')];
+
+if isequal(cfg.type, 'minMaxDemand')
+    cfg.sav.resultsDir = [parentFold filesep 'resultsMmd' filesep...
+        timeString '_' cfg.description];
+else
+    cfg.sav.resultsDir = [parentFold filesep 'resultsOso' filesep...
+        timeString '_' cfg.description];
+end
+mkdir(cfg.sav.resultsDir);
+
+
 %% Produce Derived values (no new inputs below this line)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 cfg.sim.nProc = min(cfg.sim.nInstances, nProcAvail);
 cfg.sim.nMethods = length(cfg.sim.methodList);
 

@@ -47,9 +47,9 @@ batteryValues = zeros(1, nIdxs);
 % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
 % hourNum]
 if cfg.opt.knowDemandNow
-    nFeat = 2*cfg.fc.nLags + 4;
+    nFeat = 2*length(cfg.fc.lagsToInclude) + 4;
 else
-    nFeat = 2*cfg.fc.nLags + 2;
+    nFeat = 2*length(cfg.fc.lagsToInclude) + 2;
 end
 featVecs = zeros(nFeat, nIdxs);
 
@@ -71,7 +71,7 @@ for idx = 1:nIdxs;
     % affect this
     hourNow = mod(idx, cfg.sim.stepsPerDay);
     
-    [importPrice, exportPrice] = getGridPrices(hourNow);
+    [importPrice, exportPrice] = getGridPrices(cfg, hourNow);
     imp(idx) = importPrice;
     exp(idx) = exportPrice;
     
@@ -79,10 +79,12 @@ for idx = 1:nIdxs;
     % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
     % hourNum]
     if cfg.opt.knowDemandNow
-        featVecs(:, idx) = [demandDelays; demandNow; pvDelays; ...
+        featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1));...
+            demandNow; pvDelays(end - (cfg.fc.lagsToInclude - 1)); ...
             pvNow; battery.SoC; hourNow];
     else
-        featVecs(:, idx) = [demandDelays; pvDelays; battery.SoC; ...
+        featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1));...
+            pvDelays(end - (cfg.fc.lagsToInclude - 1)); battery.SoC; ...
             hourNow];
     end
     
@@ -132,8 +134,9 @@ for idx = 1:nIdxs;
         
         if ~runControl.setPoint
             % Do DP control:
-            [bestDischargeStep, bestCTG(idx)] = controllerDp(cfg, ...
-                demandForecast, pvForecast, battery, hourNow);
+            [bestDischargeStep, bestCTG(idx)] = controllerDp_mex(...
+                getCfgForController(cfg), demandForecast, pvForecast,...
+                battery.getStruct(), hourNow);
         else
             % Do SP control:
             bestDischargeValue = demandNow - pvNow;

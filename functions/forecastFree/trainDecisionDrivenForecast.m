@@ -53,16 +53,17 @@ if isequal(cfg.type, 'oso')
     % Battery size fixed by number of customers:
     
     if ~isfield(cfg.sim, 'batteryCapacityTotal')
-        battery = Battery(cfg, cfg.sim.batteryCapacityPerCustomer*...
-            nCustomer);
+        battery = Battery(getCfgForController(cfg), ...
+            cfg.sim.batteryCapacityPerCustomer*nCustomer);
     else
-        battery = Battery(cfg, cfg.sim.batteryCapacityTotal);
+        battery = Battery(getCfgForController(cfg),...
+            cfg.sim.batteryCapacityTotal);
     end        
 else
     % Battery size depends on demand of the aggregation considered
     meanDemand = mean(demandDataTrain);
-    battery = Battery(cfg, meanDemand*cfg.sim.batteryCapacityRatio*...
-        cfg.sim.stepsPerDay);
+    battery = Battery(getCfgForController(cfg),...
+        meanDemand*cfg.sim.batteryCapacityRatio*cfg.sim.stepsPerDay);
 end
 
 

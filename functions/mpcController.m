@@ -28,7 +28,7 @@ battery.reset();
 
 % Create zero-size battery for case of sim with no battery
 if isfield(runControl, 'NB') && runControl.NB
-    battery = Battery(cfg, 0.0);
+    battery = Battery(getCfgForController(cfg), 0.0);
 end
         
 nIdxs = size(godCast, 1);

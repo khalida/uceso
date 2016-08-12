@@ -28,7 +28,7 @@ importPrices = zeros(nStages,1);
 exportPrices = zeros(nStages,1);
 for t = 1:nStages
     [importPrices(t), exportPrices(t)] = ...
-        getGridPrices(mod(hourNow+t-1, cfg.sim.horizon));
+        getGridPrices(cfg, mod(hourNow+t-1, cfg.sim.horizon));
 end
 
 % Work back through previous stages and find minimum cost to go
@@ -128,9 +128,9 @@ end
 bestDischargeStep =  ST_b(battery.state, 1);
 bestCTG = CTG(battery.state, 1);
 
-% DEBUG: Produce plot of optimal horizon decisions for 1st interval:
+% % DEBUG: Produce plot of optimal horizon decisions for 1st interval:
 % if isempty(doneHorizonPlot)
-%     plotHorizon(demForecast, pvForecast, q_t_state, hourNow, ...
+%     plotHorizon(cfg, demForecast, pvForecast, q_t_state, hourNow, ...
 %         gridImport);
 %     
 %     doneHorizonPlot = true;

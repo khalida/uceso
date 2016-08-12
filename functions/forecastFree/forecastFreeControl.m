@@ -27,7 +27,8 @@ switch cfg.fc.modelType
         end
         
     case 'FFNN'
-        respVec = model( featVec );
+        % Make decision using FF controller:
+        respVec = forecastFfnn(cfg, model, featVec);
         
         % Apply set point recourse if selected
         if cfg.opt.setPointRecourse && ~isequal(cfg.type, 'oso')

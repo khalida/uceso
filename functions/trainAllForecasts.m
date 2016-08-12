@@ -107,7 +107,7 @@ parfor instance = 1:cfg.sim.nInstances
                 tempTic = tic;
                 
                 tempModels{1, methodTypeIdx}.demand = trainHandle(...
-                    cfg, dataTrain.demand(:, instance), );
+                    cfg, dataTrain.demand(:, instance));
                 
                 if isequal(cfg.type, 'oso')
                     tempModels{1, methodTypeIdx}.pv = trainHandle(...

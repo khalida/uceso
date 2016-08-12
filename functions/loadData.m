@@ -1,4 +1,4 @@
-function [ dataTrain, dataTest ] = loadData( cfg )
+function [ dataTrain, dataTest, cfg ] = loadData( cfg )
 % loadData: Load the demand data for the customers, and divide into
 %               training and test sets
 
@@ -8,6 +8,17 @@ nIntervalsTest = cfg.sim.nHoursTest*cfg.sim.stepsPerHour;
 if isequal(cfg.type, 'oso')
     % Indexes to use for oso instances:
     [unixTime, allValues] = importFilesFromFolder(cfg);
+    
+    aggregationFactor = 2/cfg.sim.stepsPerHour;
+    if aggregationFactor < 1 || ~isWholeNumber(aggregationFactor)
+        error('Aggregation factor needs to be whole integer >= 1');
+    elseif aggregationFactor > 1
+        [unixTime, allValues] = temporallyAggregateData(unixTime, ...
+            allValues, aggregationFactor);
+        
+        cfg.fc.nHoursTrain = floor(cfg.fc.nHoursTrain/aggregationFactor);
+        cfg.sim.nHoursTest = floor(cfg.sim.nHoursTest/aggregationFactor);
+    end
     
     % Drop any unneeded data & package data into single structure
     dataLengthRequired = nIntervalsTrain + nIntervalsTest + ...
@@ -21,37 +32,49 @@ if isequal(cfg.type, 'oso')
     allValues.demand = allValues.demand(1:dataLengthRequired,:);
     
     % Find offset required to start train, and test period at midnight
-    zeroTestIdx = 49 - 2*hour(serialTime(1)) - (minute(serialTime(1))/30);
-    trainIdxs = zeroTestIdx + (1:nIntervalsTrain);
+    listOfTimes = zeros(cfg.sim.stepsPerDay, 1);
+    for idx = 1:length(listOfTimes)
+        listOfTimes(idx) = hour(serialTime(idx)) + ...
+            minute(serialTime(idx))/60;
+    end
+    [~, minTimeIdx] = min(listOfTimes);
+    trainIdxs = (1:nIntervalsTrain) + minTimeIdx - 1;
     dataTrain.demand = allValues.demand(trainIdxs, :);
     dataTrain.pv = allValues.pv(trainIdxs, :);
     dataTrain.time = serialTime(trainIdxs);
     
     firstTrIdx = max(trainIdxs) + 1;
-    zeroTrIdx = 48 - 2*hour(serialTime(firstTrIdx)) - ...
-        minute(serialTime(firstTrIdx))/30;
     
-    % Second alignment step should not be necessary, if whole No. days
-    % training and testing selected?
-    testIdxs = firstTrIdx + zeroTrIdx + (1:nIntervalsTest);
+    for idx = 1:length(listOfTimes)
+        listOfTimes(idx) = hour(serialTime(firstTrIdx + idx - 1)) + ...
+            minute(serialTime(firstTrIdx + idx - 1))/60;
+    end
+    [~, minTimeIdx] = min(listOfTimes);
+    testIdxs = (1:nIntervalsTest) + firstTrIdx + minTimeIdx - 2;
     dataTest.demand = allValues.demand(testIdxs, :);
     dataTest.pv = allValues.pv(testIdxs, :);
     dataTest.time = serialTime(testIdxs);
     
     % Test that we have 1st interval (of 48)
-    train1stInt = 2*hour(dataTrain.time(1)) + minute(dataTrain.time(1))/30;
-    test1stInt = 2*hour(dataTest.time(1)) + minute(dataTest.time(1))/30;
-    if train1stInt ~= 1 || test1stInt ~= 1
-        error('Either train on test data doesnt start at start of day');
-    end
+%     train1stInt = 2*hour(dataTrain.time(1)) + minute(dataTrain.time(1))/30;
+%     test1stInt = 2*hour(dataTest.time(1)) + minute(dataTest.time(1))/30;
+%     if train1stInt ~= 1 || test1stInt ~= 1
+%         error('Either train on test data doesnt start at start of day');
+%     end
     
 else
     
     % Load pre-saved MATLAB file
     load(cfg.dataFileWithPath);
     
-    % puts 'demandData' matrix in funciton workspace
+    % puts 'demandData' matrix in function workspace
     % [nIntervalsRead x nMeters]
+    
+    % don't allow use of anything other than half-hourly data for the
+    % peak-minimization problem:
+    if cfg.sim.stepsPerHour ~= 2
+        errro('minMaxDemand must be run with half-hourly interval');
+    end
     
     dataTrain.demand = zeros(nIntervalsTrain, cfg.sim.nInstances);
     dataTest.demand = zeros(nIntervalsTest, cfg.sim.nInstances);

@@ -30,7 +30,7 @@ importPrices = zeros(nStages,1);
 exportPrices = zeros(nStages,1);
 for t = 1:nStages
     [importPrices(t), exportPrices(t)] = ...
-        getGridPrices(mod(hourNow+t-1, cfg.sim.horizon));
+        getGridPrices(cfg, mod(hourNow+t-1, cfg.sim.horizon));
 end
 
 % Work back through previous stages and find minimum cost to go

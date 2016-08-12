@@ -76,35 +76,23 @@ typedef struct emxArray_real_T_1x17 emxArray_real_T_1x17;
 
 #endif                                 /*typedef_emxArray_real_T_1x17*/
 
-#ifndef struct_emxArray_real_T_1x2
-#define struct_emxArray_real_T_1x2
-
-struct emxArray_real_T_1x2
-{
-  real_T data[2];
-  int32_T size[2];
-};
-
-#endif                                 /*struct_emxArray_real_T_1x2*/
-
-#ifndef typedef_emxArray_real_T_1x2
-#define typedef_emxArray_real_T_1x2
-
-typedef struct emxArray_real_T_1x2 emxArray_real_T_1x2;
-
-#endif                                 /*typedef_emxArray_real_T_1x2*/
-
 #ifndef typedef_struct1_T
 #define typedef_struct1_T
 
 typedef struct {
   real_T horizon;
   real_T stepsPerHour;
-  real_T batteryEtaD;
   real_T batteryEtaC;
-  real_T batteryChargingFactor;
+  real_T batteryEtaD;
   real_T minCostDiff;
+  real_T importPrice;
+  real_T exportPriceLow;
+  real_T exportPriceHigh;
+  real_T firstHighPeriod;
+  real_T lastHighPeriod;
+  real_T batteryChargingFactor;
   real_T eps;
+  boolean_T updateBattValue;
 } struct1_T;
 
 #endif                                 /*typedef_struct1_T*/
@@ -114,6 +102,10 @@ typedef struct {
 
 typedef struct {
   real_T costPerKwhUsed;
+  char_T damageModel[5];
+  real_T nominalCycleLife;
+  real_T nominalDoD;
+  real_T maxLifeHours;
 } struct2_T;
 
 #endif                                 /*typedef_struct2_T*/
@@ -122,7 +114,7 @@ typedef struct {
 #define typedef_struct3_T
 
 typedef struct {
-  real_T statesPerKwh;
+  real_T seasonalPeriod;
 } struct3_T;
 
 #endif                                 /*typedef_struct3_T*/
@@ -131,10 +123,7 @@ typedef struct {
 #define typedef_struct4_T
 
 typedef struct {
-  real_T trainRatio;
-  emxArray_real_T_1x2 nNodes;
-  boolean_T suppressOutput;
-  real_T maxTime;
+  real_T statesPerKwh;
 } struct4_T;
 
 #endif                                 /*typedef_struct4_T*/
@@ -145,9 +134,9 @@ typedef struct {
 typedef struct {
   struct1_T sim;
   struct2_T bat;
+  struct3_T fc;
   char_T type[3];
-  struct3_T opt;
-  struct4_T fc;
+  struct4_T opt;
 } struct0_T;
 
 #endif                                 /*typedef_struct0_T*/

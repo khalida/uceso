@@ -26,7 +26,9 @@ peakSoFar = 1;                              % 1kWh/interval peak demand
 %% Test 1a. Case with a very large battery:
 % With large battery and problem above, expect charge of -2kWh/interval
 % as we're rewarding margin
-battery = Battery(cfg, 1000);               % 1000kWh bat charged to 500kWh
+
+% 1000kWh bat charged to 500kWh
+battery = Battery(getCfgForController(cfg), 1000); 
 [energyToBattery, exitFlag] = controllerOptimizer(cfg, forecast,...
     demandNow, battery, peakSoFar);
 
@@ -48,7 +50,9 @@ end
 % With large battery and problem above, expect charge of -1kWh/interval
 % as we're not rewarding margin (NB: degenerate; we can only check bound)
 cfg.opt.rewardMargin = false;
-battery = Battery(cfg, 1000);               % 1000kWh bat charged to 500kWh
+
+% 1000kWh bat charged to 500kWh
+battery = Battery(getCfgForController(cfg), 1000);
 [energyToBattery, exitFlag] = controllerOptimizer(cfg, forecast,...
     demandNow, battery, peakSoFar);
 
@@ -69,7 +73,9 @@ cfg.opt.rewardMargin = true;
 %% Test 2. Case with a limited battery:
 % With limited battery
 
-battery = Battery(cfg, 2);                  % 2kWh bat charged to 1kWh
+% 2kWh bat charged to 1kWh
+battery = Battery(getCfgForController(cfg), 2);                  
+
 [energyToBattery, exitFlag] = controllerOptimizer(cfg, forecast,...
     demandNow, battery, peakSoFar);
 
@@ -90,7 +96,9 @@ end
 % Expect setPoint controller to charge battery by -1.0kWh/interval, even
 % with a limited capacity (no look-ahead)
 cfg.opt.setPoint = true;
-battery = Battery(cfg, 2);                  % 2kWh bat charged to 1kWh
+
+% 2kWh bat charged to 1kWh
+battery = Battery(getCfgForController(cfg), 2);                  
 [energyToBattery, exitFlag] = controllerOptimizer(cfg, forecast,...
     demandNow, battery, peakSoFar);
 

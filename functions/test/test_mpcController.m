@@ -38,7 +38,9 @@ runControl.skipRun = false;
 %% Test 1a Case with a very large battery:
 % With large battery and problem above, expect charge of -2kWh/interval
 % as we're rewarding margin
-battery = Battery(cfg, 1000);               % 1000kWh bat charged to 500kWh
+
+% 1000kWh bat charged to 500kWh
+battery = Battery(getCfgForController(cfg), 1000);               
 
 [ runningPeak, exitFlag, ~] = mpcController(cfg,...
     [], godCast, demand, demandDelays, battery, runControl);
@@ -60,7 +62,9 @@ end
 %% Test 1b Case with a very large battery:
 % Reset running peak to zero:
 cfg.opt.resetPeakToMean = false;
-battery = Battery(cfg, 1000);               % 1000kWh bat charged to 500kWh
+
+% 1000kWh bat charged to 500kWh
+battery = Battery(getCfgForController(cfg), 1000);               
 
 [ runningPeak, exitFlag, ~] = mpcController(cfg,...
     [], godCast, demand, demandDelays, battery, runControl);
@@ -82,7 +86,7 @@ cfg.opt.resetPeakToMean = true;
 
 %% Test 2a Case with ltd. size battery:
 sizeForReductionToMean = 0.5;         % [kWh]
-battery = Battery(cfg, 0.5*sizeForReductionToMean);
+battery = Battery(getCfgForController(cfg), 0.5*sizeForReductionToMean);
 expectedPeak = mean([mean(demand), max(demand)]);
 
 [ runningPeak, exitFlag, ~] = mpcController(cfg,...
@@ -104,7 +108,7 @@ end
 
 %% Test 2b Case with ltd. size battery, and charge-rate limit
 cfg.sim.batteryChargingFactor = 2;
-battery = Battery(cfg, 0.5*sizeForReductionToMean);
+battery = Battery(getCfgForController(cfg), 0.5*sizeForReductionToMean);
 expectedPeak = max(expectedPeak, max(demand)-battery.maxChargeEnergy);
 
 [ runningPeak, exitFlag, ~] = mpcController(cfg,...
@@ -128,7 +132,7 @@ end
 runControl.godCast = false;
 runControl.setPoint = true;
 runControl.skipRun = false;
-battery = Battery(cfg, sizeForReductionToMean);
+battery = Battery(getCfgForController(cfg), sizeForReductionToMean);
 
 [ runningPeak, exitFlag, ~] = mpcController(cfg,...
     [], godCast, demand, demandDelays, battery, runControl);
@@ -149,7 +153,7 @@ end
 
 %% Test 3b Set-point Controller, with battery capacity limit
 cfg.sim.batteryChargingFactor = 100;
-battery = Battery(cfg, 0.5*sizeForReductionToMean);
+battery = Battery(getCfgForController(cfg), 0.5*sizeForReductionToMean);
 expectedPeak = mean([mean(demand), max(demand)]);
 
 [ runningPeak, exitFlag, ~] = mpcController(cfg,...

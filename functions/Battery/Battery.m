@@ -262,5 +262,14 @@ classdef Battery < handle
                 end
             end
         end
+        
+        % Return STRUCT copy of current battery object
+        function battStruct = getStruct(this)
+            batteryFields = fieldnames(this);
+            for fieldIdx = 1:length(batteryFields)
+                thisField = batteryFields{fieldIdx};
+                battStruct.(thisField) = this.(thisField);
+            end
+        end
     end
 end
