@@ -45,22 +45,21 @@ plotEachTrainLength = true;  %#ok<*UNRCH>
 cfg = Config(pwd);
 
 % Reduce dimensionality of data; assume we have 6-hour time-steps
-cfg.sim.horizon = 6;
-cfg.fc.seasonalPeriod = 6;
-cfg.fc.nLags = 6;
-cfg.sim.stepsPerHour = 0.25;
-cfg.sim.stepsPerDay = 6;
-cfg.fc.minimizeOverFirst = 6;
-cfg.sim.firstHighPeriod = 2;
-cfg.sim.lastHighPeriod = 5;
+% cfg.sim.horizon = 6;
+% cfg.fc.seasonalPeriod = 6;
+% cfg.fc.nLags = 6;
+% cfg.sim.stepsPerHour = 0.25;
+% cfg.sim.stepsPerDay = 6;
+% cfg.fc.minimizeOverFirst = 6;
+% cfg.sim.firstHighPeriod = 2;
+% cfg.sim.lastHighPeriod = 5;
 
-cfg.fc.lagsToInclude = 1:cfg.fc.nLags;
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
-noiseMagnitudes = sglMagnitude.*[0, 0.125, 0.25, 0.5];   % several noise levels to run over
-tsTrainLengths = [128 256];                           % several train lengtsh to run over
-tsTestLength = 256*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+noiseMagnitudes = sglMagnitude.*[0, 0.5];   % several noise levels to run over
+tsTrainLengths = [52 104];                           % several train lengtsh to run over
+tsTestLength = 52*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 
 %% Initialize results vectors

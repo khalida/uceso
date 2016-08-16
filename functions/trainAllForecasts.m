@@ -5,7 +5,8 @@ function [ trainedModels, trainTime ] = trainAllForecasts(cfg, dataTrain)
 
 %% INPUTS:
 % cfg:              Structure containing all of the running options
-% dataTrain:        Structure with demand (and PV) data [nIntervalsTrain x nInstances]
+% dataTrain:        Structure with demand (and PV) data
+% [nIntervalsTrain x nInstances]
 
 %% OUTPUTS:
 % trainedModels:    Trained forecast and forecast-free controller models
@@ -32,10 +33,12 @@ switch cfg.fc.modelType
         error('Selected cfg.fc.modelType not implemented');
 end
 
+
 %% Train Models
 % Delete parrallel pool if it exists
 poolobj = gcp('nocreate');
 delete(poolobj);
+
 % Set-up cluster job with own dir (to avoid error messages):
 myCluster = parcluster('local');
 tmpDirName = tempname;
@@ -66,24 +69,6 @@ parfor instance = 1:cfg.sim.nInstances
                 else
                     tempModels{1, methodTypeIdx} = ...
                         trainForecastFreeController(cfg, ...
-                        dataTrain.demand(:, instance));
-                end
-                
-                tempTimeTaken(1, methodTypeIdx) = toc(tempTic);
-                
-            % Train Decision-Driven Forecast controller
-            case 'DDFC'
-                tempTic = tic;
-                
-                if isequal(cfg.type, 'oso')
-                    tempModels{1, methodTypeIdx} = ...
-                        trainDecisionDrivenForecast(cfg, ...
-                        dataTrain.demand(:, instance), ...
-                        dataTrain.pv(:, instance), ...
-                        cfg.sim.nCustomersByInstance(instance));
-                else
-                    tempModels{1, methodTypeIdx} = ...
-                        trainDecisionDrivenForecast(cfg, ...
                         dataTrain.demand(:, instance));
                 end
                 

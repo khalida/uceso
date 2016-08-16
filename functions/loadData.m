@@ -5,19 +5,17 @@ function [ dataTrain, dataTest, cfg ] = loadData( cfg )
 nIntervalsTrain = cfg.fc.nHoursTrain*cfg.sim.stepsPerHour;
 nIntervalsTest = cfg.sim.nHoursTest*cfg.sim.stepsPerHour;
 
+%% Loading data for OSO-problem
 if isequal(cfg.type, 'oso')
     % Indexes to use for oso instances:
     [unixTime, allValues] = importFilesFromFolder(cfg);
     
     aggregationFactor = 2/cfg.sim.stepsPerHour;
     if aggregationFactor < 1 || ~isWholeNumber(aggregationFactor)
-        error('Aggregation factor needs to be whole integer >= 1');
+        error('Aggregation factor needs to be integer >= 1');
     elseif aggregationFactor > 1
         [unixTime, allValues] = temporallyAggregateData(unixTime, ...
             allValues, aggregationFactor);
-        
-        cfg.fc.nHoursTrain = floor(cfg.fc.nHoursTrain/aggregationFactor);
-        cfg.sim.nHoursTest = floor(cfg.sim.nHoursTest/aggregationFactor);
     end
     
     % Drop any unneeded data & package data into single structure
@@ -55,25 +53,20 @@ if isequal(cfg.type, 'oso')
     dataTest.pv = allValues.pv(testIdxs, :);
     dataTest.time = serialTime(testIdxs);
     
-    % Test that we have 1st interval (of 48)
-%     train1stInt = 2*hour(dataTrain.time(1)) + minute(dataTrain.time(1))/30;
-%     test1stInt = 2*hour(dataTest.time(1)) + minute(dataTest.time(1))/30;
-%     if train1stInt ~= 1 || test1stInt ~= 1
-%         error('Either train on test data doesnt start at start of day');
-%     end
-    
 else
+    
+    %% Loading data for minMaxDemand-problem
     
     % Load pre-saved MATLAB file
     load(cfg.dataFileWithPath);
     
-    % puts 'demandData' matrix in function workspace
+    % puts 'demandData' matrix in function's workspace
     % [nIntervalsRead x nMeters]
     
     % don't allow use of anything other than half-hourly data for the
     % peak-minimization problem:
     if cfg.sim.stepsPerHour ~= 2
-        errro('minMaxDemand must be run with half-hourly interval');
+        error('minMaxDemand must be run with half-hourly interval');
     end
     
     dataTrain.demand = zeros(nIntervalsTrain, cfg.sim.nInstances);

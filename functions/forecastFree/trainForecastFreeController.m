@@ -14,7 +14,7 @@ function [ model ] = trainForecastFreeController( cfg,  demandDataTrain,...
 % model:    MATLAB NN network model of FF controller
 
 if ~isempty(varargin)
-    if ~isequal(cfg.type, 'oso') || length(varargin) > 2
+    if ~isequal(cfg.type, 'oso') || length(varargin) ~= 2
         error('Wrong number of input arguments')
     else
         pvDataTrain = varargin{1};
@@ -30,7 +30,7 @@ demandDelays = demandDataTrain(cfg.sim.initIdxs);
 demandDataTrainOnly = demandDataTrain(cfg.sim.trainOnlyIdxs);
 if isequal(cfg.type, 'oso')
     pvDelays = pvDataTrain(cfg.sim.initIdxs);
-    pvDataTrainOnly = pvDataTrain((max(cfg.sim.initIdxs)+1):end);
+    pvDataTrainOnly = pvDataTrain(cfg.sim.trainOnlyIdxs);
 end
 
 
@@ -44,10 +44,10 @@ if isequal(cfg.type, 'oso')
     end
 end
 
+
 %% Set-up parameters for on-line simulation
 if isequal(cfg.type, 'oso')
-    % Battery size fixed by number of customers:
-    
+    % Battery size fixed by number of customers (or constant across all)
     if ~isfield(cfg.sim, 'batteryCapacityTotal')
         battery = Battery(getCfgForController(cfg),...
             cfg.sim.batteryCapacityPerCustomer*nCustomer);
@@ -62,7 +62,8 @@ else
         meanDemand*cfg.sim.batteryCapacityRatio*cfg.sim.stepsPerDay);
 end
 
-%% Simulate Model to create training examples
+
+%% Simulate Model under Perfect Foresight to create training examples
 runControl.godCast = true;
 runControl.modelCast = false;
 runControl.naivePeriodic = false;
@@ -71,7 +72,7 @@ runControl.setPoint = false;
 runControl.randomizeInterval = 9e9;
 
 if isequal(cfg.type, 'oso')
-    [ ~, ~, ~, ~, ~, respVecs, featVecs, ~, ~, ~] = mpcControllerDp(cfg, ...
+    [ ~, ~, ~, ~, ~, respVecs, featVecs, ~, ~, ~] = mpcControllerDp(cfg,...
         [], demGodCast, demandDataTrainOnly, pvGodCast, pvDataTrainOnly,...
         demandDelays, pvDelays, battery, runControl);
 else
@@ -94,7 +95,8 @@ offset = nTrainIdxs;
 % for subsequent shuffles, use randomizations:
 runControl.randomizeInterval = cfg.fc.randomizeInterval;
 
-%% Continue generating examples with suffled versions of training data:
+%% Continue generating examples with occasional randomization of state
+% and also optional shuffling of the training data
 for eachShuffle = 1:cfg.fc.nTrainShuffles    
 
     newDemandDataTrain = demandDataTrain;
@@ -120,7 +122,6 @@ for eachShuffle = 1:cfg.fc.nTrainShuffles
     end
     
     if isequal(cfg.type, 'oso')
-        
         newPvDataTrain = pvDataTrain;
         for eachSwap = 1:cfg.fc.nDaysSwap
             swapStart = randi(length(pvDataTrain) - 2*cfg.sim.horizon);

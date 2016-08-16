@@ -9,8 +9,9 @@ function [ results ] = testAllForecasts(cfg, trainedModels, data)
 % results:      Structure of output/final results
 
 
-%% Pre-Allocation, OSO-only
 if isequal(cfg.type, 'oso')
+    
+    %% Pre-Allocation, OSO-only
     totalCost = cell(cfg.sim.nInstances, 1);
     totalDamageCost = cell(cfg.sim.nInstances, 1);
     storageProfile = cell(cfg.sim.nInstances, 1);
@@ -34,7 +35,9 @@ if isequal(cfg.type, 'oso')
     end
     % Avoid parfor error:
     meanKWhs = zeros(cfg.sim.nInstances, 1);
-else %% minMaxDemand-only:
+else
+    
+    %% minMaxDemand-only:
     peakReductions = cell(cfg.sim.nInstances, 1);
     peakPowers = cell(cfg.sim.nInstances, 1);
     smallestExitFlag = cell(cfg.sim.nInstances, 1);
@@ -52,7 +55,7 @@ else %% minMaxDemand-only:
     end
 end
 
-%% Communal:
+%% Common:
 featureVectorsFF = cell(cfg.sim.nInstances, 1);
 noiseSglRatioDem = cell(cfg.sim.nInstances, 1);
 for instance = 1:cfg.sim.nInstances
@@ -108,17 +111,20 @@ parfor instance = 1:cfg.sim.nInstances
     delayIdxs = 1:cfg.fc.nLags;
     demandDelays = data.demand(delayIdxs, instance);
     demandDataTest = data.demand((max(delayIdxs)+1):end, instance);
+    
     % Create godCast (perfect foresight) forecasts
     godCastDem = createGodCast(demandDataTest, cfg.sim.horizon);
     
     if isequal(cfg.type, 'oso')
         pvDelays = data.pv(delayIdxs, instance); %#o%#ok<MSNU> k<PFBNS>
         pvDataTest = data.pv((max(delayIdxs)+1):end, instance);
+        
         % Create godCast (perfect foresight) forecasts
         godCastPv = createGodCast(pvDataTest, cfg.sim.horizon);
     else
         peakLocalPower = max(demandDataTest);
     end
+    
     
     %% Test performance of all methods
     for methodType = 1:cfg.sim.nMethods
@@ -186,7 +192,7 @@ parfor instance = 1:cfg.sim.nInstances
         
         if isequal(cfg.type, 'oso')
             % Extract oso sim results (NB: this still needs to be
-            % implemented, if we want anything other than totalCost etc.)
+            % implemented, if we want anything other than totalCost)
             
         else
             % Extract minMaxDemand sim results

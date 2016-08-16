@@ -19,24 +19,14 @@ tic;
 rng(42);
 LoadFunctions;
 
-%% 1) Choose running options (set locally)
-cfg.sim.horizon = 48;
-cfg.sim.stepsPerHour = 2;
-cfg.sim.batteryEtaD = 0.95;
-cfg.sim.batteryEtaC = 0.95;
-cfg.bat.costPerKwhUsed = 0.15;
-cfg.sim.batteryChargingFactor = 2;
-cfg.sim.minCostDiff = 1e-10;
-cfg.sim.eps = 1e-10;
-cfg.type = 'oso';
-cfg.opt.statesPerKwh = 8;
-cfg.fc.trainRatio = 0.8;
-cfg.fc.nNodes = [2*98 2*98];
-cfg.fc.suppressOutput = false;
-cfg.fc.maxTime = 20*60;
+%% 1) Choose running options (set in Config file)
+cfg = Config(pwd);
+
+% Make some changes to make learning algorithm a bit easier!
+cfg.sim.horizon = 2;
 
 % Initilaize the Battery Object
-battery = Battery(getCfgForController(cfg), 0.5);
+battery = Battery(getCfgForController(cfg), 1);
 nObservations = 100000;
 
 %% 2) Generate (random) PV and demand data;
@@ -59,12 +49,11 @@ hourNumbers = randsample(1:cfg.sim.horizon, nObservations, true)';
 
 
 %% 4) Find DP solutions;
-
 % Test speed-up offered by using compiled MEX-code
 runDpTimer = tic;
 dpSolutionsMex = zeros(nObservations, 1);
 for ii = 1:nObservations
-    nonClassBatt.state = batteryStates(ii);
+    battery.state = batteryStates(ii);
     dpSolutionsMex(ii) = controllerDp_mex(getCfgForController(cfg),...
         demandData(ii, :), pvData(ii, :), battery.getStruct(),...
         hourNumbers(ii));
@@ -74,12 +63,12 @@ disp(['Running DP in MEX took: ' num2str(toc(runDpTimer))]);
 % runDpTimer = tic;
 % dpSolutionsMlab = zeros(nObservations, 1);
 % for ii = 1:nObservations
-%     nonClassBatt.state = batteryStates(ii);
+%     battery.state = batteryStates(ii);
 %     dpSolutionsMlab(ii) = controllerDp(cfg, demandData(ii, :), ...
-%         pvData(ii, :), nonClassBatt, hourNumbers(ii));
+%         pvData(ii, :), battery, hourNumbers(ii));
 % end
 % disp(['Running DP in Matlab took: ' num2str(toc(runDpTimer))]);
-% 
+
 % % Check that results are the same
 % disp(['Max difference: ' num2str(max(abs(dpSolutionsMex - ...
 %     dpSolutionsMlab)))]);
@@ -101,32 +90,13 @@ testFeatVecs = featureVectors(testIdxs, :);
 testRespVecs = responseVectors(testIdxs, :);
 testRespVals = dpSolutionsMex(testIdxs, :);
 
-% Try classification network:
-
-% NB: Not sure why, but classifying NN trained from CLI not working at
-% all. That trained from GUI does work which is strange.
-% Need to dig into this!!! Or just give up on Matlab for ML!
-
-modelClass = trainClassifierNN(cfg, trainFeatVecs, trainRespVecs);
-[ testRespVecs_hat, performance, percentErrors ] = testClassifierNN(...
-    modelClass, testFeatVecs, testRespVecs);
-
-figure();
-scatter(targetsToLabels(testRespVecs, labels), ...
-    targetsToLabels(testRespVecs_hat, labels));
-
-xlabel('Target Response');
-ylabel('NN Response');
-grid on; refline(1, 0);
-title('Performance of Classification Network');
-
-% Try classification network:
-modelReg = trainFfnn(cfg,  trainFeatVecs', dpSolutionsMex(trainIdxs)');
+% Train Regression network:
+modelReg = trainFfnnMultiInit(cfg,  trainFeatVecs', dpSolutionsMex(trainIdxs)');
 figure();
 scatter(dpSolutionsMex(testIdxs), modelReg(testFeatVecs'));
-xlabel('Target Response');
-ylabel('NN Response');
+xlabel('Solution from Exact Controller');
+ylabel('Response from NN');
 grid on; refline(1, 0);
-title('Performance of Regression Network');
+plotAsTixz('NeuralNetworkDPapproximator.tikz');
 
 disp(['Total time taken: ' num2str(toc)]);

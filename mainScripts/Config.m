@@ -5,34 +5,33 @@
 % cfg.fc:   forecast settings
 % cfg.opt:  optimization settings
 % cfg.sim:  simulation settings
-% cfg.bat:  properoties of the battery (some are under cfg.sim)
+% cfg.bat:  properties of the battery (some are under cfg.sim)
 % cfg.plt:  plotting settings
 % cfg.sav:  saving settings
 
 function cfg = Config(pwd)
 
-rng(42);            % For repeatability
-cfg.type = 'oso';   % Problem being solved: 'minMaxDemand', 'oso'
-cfg.description = '30minInt_moreCust';
+rng(42);            		% For repeatability
+cfg.type = 'oso';   	% Problem being solved: 'minMaxDemand', 'oso'
+cfg.description = 'osoLargeScale';
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
-nProcAvail = 4;
+nProcAvail = 15;
 
 %% cfg.sim: Simulation Settings
 % Horizon length, in intervals:
 cfg.sim.stepsPerHour = 2;
 cfg.sim.hoursPerDay = 24;
 cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
-cfg.sim.nCustomers = [4, 114];
-cfg.sim.nAggregates = 2;
+cfg.sim.nCustomers = [1, 5, 20, 50, 100];
+cfg.sim.nAggregates = 6;
 
 cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
-cfg.sim.nDaysTest = 50*7;           % days to run simulation for
-cfg.sim.eps = 1e-4;                 % Threshold for constraint checking
+cfg.sim.nDaysTest = 24*7;           % days to run simulation for
+cfg.sim.eps = 1e-6;                 % Threshold for constraint checking
 cfg.sim.billingPeriodDays = 7;      % No. of days in billing period
 
-
-% sim settings specific to the two-types of control problem:
+% cfg.sim settings specific to the two-types of control problem:
 if isequal(cfg.type, 'minMaxDemand')
     % fraction of daily mean demand of the aggregation
     cfg.sim.batteryCapacityRatio = 0.05;  
@@ -45,34 +44,34 @@ else
     cfg.sim.batteryEtaD = 0.94;
     cfg.sim.updateBattValue = false;
     cfg.sim.minCostDiff = 1e-6;
-    cfg.sim.importPrice = 0.05;
-    cfg.sim.exportPriceHigh = 0.4;
-    cfg.sim.exportPriceLow = 0.1;
-    cfg.sim.firstHighPeriod = 7;
-    cfg.sim.lastHighPeriod = 21;
+    cfg.sim.exportPrice = 0.05;
+    cfg.sim.importPriceHigh = 0.4;
+    cfg.sim.importPriceLow = 0.1;
+    cfg.sim.firstHighPeriod = 14;
+    cfg.sim.lastHighPeriod = 43;
 end
 
 % List of methods to run:
 %  {'NB', 'SP', 'NPFC', 'MFFC', 'DDFC' 'IMFC', 'PFFC'};
 cfg.sim.methodList = {'NB', 'SP', 'NPFC', 'MFFC','IMFC', 'PFFC'};  
 
-%% cfg.fc: Forecast, and forecast training Settings
-cfg.fc.nDaysTrain = 50*7;     % days of historic demand to train on
+
+%% cfg.fc: Forecast, and forecast-training Settings
+cfg.fc.nDaysTrain = 52*7;     % days of historic demand to train on
 cfg.fc.modelType = 'FFNN';    % {'RNN', 'MLR', 'RNN', '...'}
 
 % Seasonal period for NP forecast, in intervals
 cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
-cfg.fc.nNodes = 50;                 % No. of nodes for NN, forests for RF
-cfg.fc.nStart = 3;                  % No. initializations
+cfg.fc.nNodes = 50;                     % No. of nodes for NN, forests for RF
+cfg.fc.nStart = 3;                      % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
 cfg.fc.mseEpochs = 1000;
-cfg.fc.maxTime = 45*60;             % Max seconds to train one NN
-cfg.fc.nRecursive = 1;              % No. of recursive feedbacks for RNN
-cfg.fc.clipNegative = true;         % Prevent output fcasts from being -ve
-
+cfg.fc.maxTime = 45*60;                 % Max seconds to train one NN
+cfg.fc.nRecursive = 1;                  % No. of recursive feedbacks for RNN
+cfg.fc.clipNegative = true;             % Prevent output fcasts from being -ve
 cfg.fc.perfDiffThresh = 0.05;           % Performance diff. to notify of
 cfg.fc.nLags = cfg.fc.seasonalPeriod;   % No. of lags to train models on
 cfg.fc.trainRatio = 0.8;
@@ -85,12 +84,13 @@ cfg.fc.nNodesFF = 50;                   % No. of nodes in FF ctrler
 cfg.fc.knowFutureFF = false;            % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
 cfg.fc.randomizeInterval = 7;
-% cfg.fc.ddForecastDraws = 2;
-% cfg.fc.batchSize = 100;
 cfg.fc.randTrainIdx = true;             % whether to randomize training indexes
 
 
 %% cfg.opt: Optimization settings
+cfg.opt.knowDemandNow = false;        % Current demand known to optimizer?
+cfg.opt.setPointRecourse = true;      % Apply set point recourse?
+cfg.opt.suppressOutput = cfg.fc.suppressOutput;
 if isequal(cfg.type, 'minMaxDemand')
     cfg.opt.secondWeight = 0;         % Of secondary objective (chargeWhenCan)
     cfg.opt.iterationFactor = 1.0;    % To apply to default max. No. iters
@@ -100,17 +100,16 @@ if isequal(cfg.type, 'minMaxDemand')
 else
     cfg.opt.statesPerKwh = 8;         % For dynamic program
 end
-cfg.opt.knowDemandNow = false;        % Current demand known to optimizer?
-cfg.opt.setPointRecourse = true;      % Apply set point recourse?
-cfg.opt.suppressOutput = cfg.fc.suppressOutput;
 
-%% Battery Settings
+
+%% cfg.bat: Battery Settings
 cfg.bat.damageModel = 'fixed';      % {'fixed', 'staticMultifactor', 'dynamicMultifactor'}
 cfg.bat.nominalCycleLife = 1825;    % 5yrs, 1 cycle (charge/discharge) per day
 cfg.bat.nominalDoD = 80;            % 10% - 90% cycle
 cfg.bat.nominalSoCav = 50;
 cfg.bat.maxLifeHours = 7*365.25*24; % 7yrs
-cfg.bat.costPerKwhUsed = 0.15;      % fixed cost for charge and discharge of 1kWh
+cfg.bat.costPerKwhUsed = 0.0;      % fixed cost for charge and discharge of 1kWh
+
 
 %% cfg.plt: Plotting Settings
 cfg.plt.visible = 'on';             % Whether to plot vizible output
@@ -125,6 +124,7 @@ if isequal(cfg.type, 'minMaxDemand')
 else
     cfg.osoDataFolder = [parentFold filesep 'data' filesep 'dataOso'];
 end
+
 
 %% cfg.sav: Location of input/output files:
 timeStart = clock;
@@ -146,7 +146,7 @@ end
 mkdir(cfg.sav.resultsDir);
 
 
-%% Produce Derived values (no new inputs below this line)
+%% Produce Derived values (no configurable inputs below this line)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 cfg.sim.nInstances = length(cfg.sim.nCustomers)*cfg.sim.nAggregates;
 cfg.sim.nProc = min(cfg.sim.nInstances, nProcAvail);

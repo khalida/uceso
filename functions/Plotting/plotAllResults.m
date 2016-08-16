@@ -77,29 +77,41 @@ print(fig_1, '-dpdf', [cfg.sav.resultsDir filesep ...
     'allPrrResults.pdf']);
 
 
-%% 2) Plot Absolute PRR against aggregation size (as means +/- error bars)
+%% 2) Plot Absolute PRR against aggregation size (as means +/- std. bars)
 
 fig_2 = figure();
-
+ax1 = subtightplot(2,1,1);
 selectedForecasts = 1:nMethods;
 selectedForecastLabels = methodList(selectedForecasts);
 meanPeakReductions = ...    % nCustomers X forecastTypes
     squeeze(mean(peakReductions(selectedForecasts, :, :), 2));
+
 stdPeakReductions = ...
     squeeze(std(peakReductions(selectedForecasts, :, :),[], 2));
+
 meanKWhs = mean(meanKWhs, 1); % nCustomers X 1
 errorbar(repmat(meanKWhs, [length(selectedForecasts), 1])', ...
     meanPeakReductions',stdPeakReductions','.-', 'markers', 20);
-xlabel('Mean Load [kWh/interval]');
+
 ylabel('Mean PRR, with +/- 1.0 std. dev.');
 legend(selectedForecastLabels, 'Interpreter', 'none',...
     'Location', 'best', 'Orientation', 'vertical');
 grid on;
-hold off;
+set(gca, 'XTickLabel', '');
+
+ax2 = subtightplot(2,1,2);
+meanSignalNoiseRatio = squeeze(mean(noiseSglRatioDem(selectedForecasts,...
+    :, :), 2));
+
+plot(meanKWhs, meanSignalNoiseRatio);
+grid on;
+xlabel('Mean Load [kWh/interval]');
+linkaxes([ax1 ax2], 'x');
 
 print(fig_2, '-dpdf', [cfg.sav.resultsDir filesep ...
     'absolutePrrVsAggregationSize.pdf']);
 
+plotAsTixz('absolutePrrVsAggregationSize.tikz');
 
 %% 3) Plot Relative PRR against aggregation size (as means +/- error bars)
 fig_3 = figure();

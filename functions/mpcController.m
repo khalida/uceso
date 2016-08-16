@@ -3,7 +3,7 @@ function [ runningPeak, exitFlag, forecastUsed, respVecs, featVecs, ...
     demandDelays, battery, runControl)
 
 % mpcController: Simulate time series behaviour of MPC controller with a
-% given forecast model (or FF controller).
+            % given forecast model (or FF controller).
 
 %% INPUTS:
 % cfg:          Structure with all the running parameters

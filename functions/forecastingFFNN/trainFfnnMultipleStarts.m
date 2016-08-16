@@ -4,13 +4,12 @@
 % brief: run trainFfnn multiple times and return best performing model
 % based on held-out set
 
-function model = trainFfnnMultipleStarts( cfg, demand, varargin )
+function model = trainFfnnMultipleStarts( cfg, demand )
 
 %% INPUTS
 % cfg:      Configuration structure including train control parameters
 % demand:   Time-history of demands on which to train [nObsTrain x 1]
-% varargin: stateValues if we are to train model to be further trained for
-% decision-driven forecasting approach
+
 
 %% OUTPUTS
 % model:    Best NN found
@@ -22,47 +21,6 @@ function model = trainFfnnMultipleStarts( cfg, demand, varargin )
 % featVecs: [nLags x nObs]
 % respVecs: [horizon x nObs]
 
-% If we are training model to be used further trained into decision-driven
-% forecast expand data to include appropriately randomized state vectors
-if ~isempty(varargin)
-    if length(varargin) ~= 1
-        error('Wrong number of input arguments')
-    else
-        stateValues = varargin{1};
-        
-        % Extend no. of examples as required (to accomodate state samples)
-        featVecs = repmat(featVecs, [1, cfg.fc.ddForecastDraws]);
-        respVecs = repmat(respVecs, [1, cfg.fc.ddForecastDraws]);
-        
-        % Add randomly samples states to the feature vectors:
-        if isequal(cfg.type, 'oso')
-            % For OSO case, just assume uniform distribution across
-            % allowable (discrete) states (initalise battery to find
-            % states)
-            if ~isfield(cfg.sim, 'batteryCapacityTotal')
-                % Battery size fixed by number of customers:
-                battery = Battery(getCfgForController(cfg),...
-                    cfg.sim.batteryCapacityPerCustomer*nCustomer);
-            else
-                % Constant overall battery size
-                battery = Battery(getCfgForController(cfg),...
-                    cfg.sim.batteryCapacityTotal);
-            end
-            randIdxs = randsample(length(battery.statesKwh), ...
-                size(featVecs, 2), true);
-            
-            featVecs(end+1, :) = battery.statesKwh(randIdxs)';
-        else
-            % mvnrnd(mu, sigma, cases) returns a cases-by-d matrix of random
-            % vectors chosen from the multivariate normal distribution with
-            % common 1-by-d mean vector MU, and common d-by-d covariance matrix SIGMA.
-            mus = mean(stateValues, 1);
-            stds = std(stateValues, [], 1);
-            featVecs(end+(1:2), :) = ...
-                mvnrnd(mus, diag(stds), size(featVecs, 2));
-        end
-    end
-end
 
 %% Divide Data into training and testing sets
 nObs = size(featVecs,2);
@@ -108,12 +66,5 @@ if percentageDiff > cfg.fc.perfDiffThresh
 end
 
 model = allModels{idxBest};
-
-%% Complete decision-driven fine-tunning as required
-% Re-uses code from FEMC project:
-if ~isempty(varargin)
-    model = trainFfnnCustomLoss(cfg, featVecTrain, respVecTrain, ...
-        model, lossExact);
-end
 
 end

@@ -669,6 +669,7 @@
     <param.objective>option.objective.c</param.objective>
     <param.WorkflowStep>workflowSummary</param.WorkflowStep>
     <param.TestSnippets>
+      <item>controllerDp(getCfgForController(cfg), rand(48,1), rand(48,1), battery.getStruct(), 1)</item>
       <item>controllerDp(getCfgForController(cfg), rand(12,1), rand(12,1), battery.getStruct(), 1)</item>
       <item>controllerDp(getCfgForController(cfg), demandData, pvData, battery.getStruct(), hourNumber)</item>
       <item>controllerDp(getCfgForController(cfg), demandData, pvData, battry, hourNumber)</item>
@@ -690,7 +691,7 @@
     <param.AutoInferUnboundedSizeThreshold>2048</param.AutoInferUnboundedSizeThreshold>
     <param.EnableFixedPointStep>false</param.EnableFixedPointStep>
     <param.EnableScreener>true</param.EnableScreener>
-    <param.AnnotationChecksum>2209573902</param.AnnotationChecksum>
+    <param.AnnotationChecksum>3016389307</param.AnnotationChecksum>
     <var.LegacyTarget />
     <var.MirrorOnOpen>false</var.MirrorOnOpen>
     <param.FixedPointEnabled>false</param.FixedPointEnabled>
@@ -703,7 +704,7 @@
     <var.cfi.preBuildChecksum>3154962743</var.cfi.preBuildChecksum>
     <var.lastCfiTestSnippet>controllerDp(cfg, demandData(1, :), pvData(1, :), nonClassBatt, hourNumbers(1))</var.lastCfiTestSnippet>
     <var.outdatedOnRestore>false</var.outdatedOnRestore>
-    <var.lastUserSourceChecksum>&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;&lt;checksum&gt;&lt;includedFiles&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\controllerDp.m&lt;/file&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\getGridPrices.m&lt;/file&gt;&lt;/includedFiles&gt;&lt;value&gt;3811088793&lt;/value&gt;&lt;/checksum&gt;</var.lastUserSourceChecksum>
+    <var.lastUserSourceChecksum>&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;&lt;checksum&gt;&lt;includedFiles/&gt;&lt;value&gt;0&lt;/value&gt;&lt;/checksum&gt;</var.lastUserSourceChecksum>
     <var.sourceSetState>&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;&lt;sourceModel&gt;&lt;primarySourceFiles&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\controllerDp.m&lt;/file&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\getGridPrices.m&lt;/file&gt;&lt;/primarySourceFiles&gt;&lt;fixedPointSourceFiles/&gt;&lt;fixedPointSourceRegistered&gt;false&lt;/fixedPointSourceRegistered&gt;&lt;fixedPointSourceSelected&gt;false&lt;/fixedPointSourceSelected&gt;&lt;/sourceModel&gt;</var.sourceSetState>
     <param.forceMexBuild>false</param.forceMexBuild>
     <param.configImportActive>false</param.configImportActive>
@@ -882,7 +883,7 @@
                 <UserDefined>false</UserDefined>
                 <Complex>false</Complex>
               </Field>
-              <Field Name="importPrice">
+              <Field Name="importPriceHigh">
                 <Class>double</Class>
                 <Size>1 x 1</Size>
                 <Value />
@@ -890,7 +891,7 @@
                 <UserDefined>false</UserDefined>
                 <Complex>false</Complex>
               </Field>
-              <Field Name="exportPriceLow">
+              <Field Name="importPriceLow">
                 <Class>double</Class>
                 <Size>1 x 1</Size>
                 <Value />
@@ -898,7 +899,7 @@
                 <UserDefined>false</UserDefined>
                 <Complex>false</Complex>
               </Field>
-              <Field Name="exportPriceHigh">
+              <Field Name="exportPrice">
                 <Class>double</Class>
                 <Size>1 x 1</Size>
                 <Value />
@@ -1128,7 +1129,7 @@
                   <UserDefined>false</UserDefined>
                   <Complex>false</Complex>
                 </Field>
-                <Field Name="importPrice">
+                <Field Name="importPriceHigh">
                   <Class>double</Class>
                   <Size>1 x 1</Size>
                   <Value />
@@ -1136,7 +1137,7 @@
                   <UserDefined>false</UserDefined>
                   <Complex>false</Complex>
                 </Field>
-                <Field Name="exportPriceLow">
+                <Field Name="importPriceLow">
                   <Class>double</Class>
                   <Size>1 x 1</Size>
                   <Value />
@@ -1144,7 +1145,7 @@
                   <UserDefined>false</UserDefined>
                   <Complex>false</Complex>
                 </Field>
-                <Field Name="exportPriceHigh">
+                <Field Name="exportPrice">
                   <Class>double</Class>
                   <Size>1 x 1</Size>
                   <Value />

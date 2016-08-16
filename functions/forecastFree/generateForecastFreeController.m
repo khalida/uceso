@@ -1,7 +1,7 @@
 function model = generateForecastFreeController(cfg, featVecs, respVecs)
 
 %% INPUTS:
-% cfg:      Strcture containing simulations options
+% cfg:      Structure containing forecast/optimization/simulation options
 % featVecs: Feature vectors in matrix [nFeat x nObs]
 % respVecs: Response vectors in matrix [nResp x nObs]
 
@@ -14,7 +14,7 @@ if size(respVecs, 2) ~= nObs;
 end;
 
 switch cfg.fc.modelType
-    
+
     case 'RF'
         % Produce one model for the charge decision
         model.decisionModel = TreeBagger(cfg.fc.nNodesFF, featVecs',...

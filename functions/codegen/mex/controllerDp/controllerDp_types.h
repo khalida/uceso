@@ -85,9 +85,9 @@ typedef struct {
   real_T batteryEtaC;
   real_T batteryEtaD;
   real_T minCostDiff;
-  real_T importPrice;
-  real_T exportPriceLow;
-  real_T exportPriceHigh;
+  real_T importPriceHigh;
+  real_T importPriceLow;
+  real_T exportPrice;
   real_T firstHighPeriod;
   real_T lastHighPeriod;
   real_T batteryChargingFactor;

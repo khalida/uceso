@@ -1,16 +1,17 @@
 function [ unixTime, allValues ] = importFilesFromFolder(cfg)
 
 %IMPORTFILESFROMFOLDER Imports all files from folders according to cfg
-%structure passed int
+%structure passed in
 
 % OUTPUT:
 % unixTime:     [nIntervals x 1] vector of unix timestamps
 % allValues:    Struct with .pv[nIntervals x nInstances] matrix of PV
-%.demand[nIntervals x nInstances] matrix
+                            %.demand[nIntervals x nInstances] matrix
 
 %% Directories of PV and demand data:
 pvDir = [cfg.osoDataFolder filesep 'PV' filesep];
 demandDir = [cfg.osoDataFolder filesep 'demand' filesep];
+
 
 %% Get list of filenames (& check list is same between folders)
 pvFilenames = getSortedFileNames(pvDir);
@@ -27,6 +28,7 @@ for ii = 1:nFiles
         error('PV, demand filenames dont match');
     end
 end
+
 
 %% Generate list of indexes to sum over (for each instance)
 osoCustIdxs = cell(cfg.sim.nInstances, 1);
@@ -59,7 +61,8 @@ end
 allDemValues = zeros(nIntervalsPv, nFiles);
 allPvValues = zeros(nIntervalsPv, nFiles);
 
-%% Read in the data (checking that timestamp arrays match
+
+%% Read in the data (checking that timestamp arrays match)
 for eachFile = 1:nFiles
     [unixTimeDem, allDemValues(:, eachFile)] =...
         importSingleFile([demandDir demandFilenames{eachFile}]);
@@ -89,6 +92,5 @@ for ii = 1:cfg.sim.nInstances
     allValues.pv(:, ii) = sum(allPvValues(:, osoCustIdxs{ii}), 2);
     allValues.demand(:, ii) = sum(allDemValues(:, osoCustIdxs{ii}), 2);
 end
-
 
 end

@@ -101,8 +101,8 @@ static void c_emlrt_marshallIn(const emlrtStack *sp, const mxArray *u, const
   emlrtMsgIdentifier thisId;
   static const int32_T dims = 0;
   static const char * fieldNames[13] = { "horizon", "stepsPerHour",
-    "batteryEtaC", "batteryEtaD", "minCostDiff", "importPrice", "exportPriceLow",
-    "exportPriceHigh", "firstHighPeriod", "lastHighPeriod",
+    "batteryEtaC", "batteryEtaD", "minCostDiff", "importPriceHigh",
+    "importPriceLow", "exportPrice", "firstHighPeriod", "lastHighPeriod",
     "batteryChargingFactor", "eps", "updateBattValue" };
 
   thisId.fParent = parentId;
@@ -123,15 +123,15 @@ static void c_emlrt_marshallIn(const emlrtStack *sp, const mxArray *u, const
   thisId.fIdentifier = "minCostDiff";
   y->minCostDiff = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp, u,
     0, "minCostDiff")), &thisId);
-  thisId.fIdentifier = "importPrice";
-  y->importPrice = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp, u,
-    0, "importPrice")), &thisId);
-  thisId.fIdentifier = "exportPriceLow";
-  y->exportPriceLow = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp,
-    u, 0, "exportPriceLow")), &thisId);
-  thisId.fIdentifier = "exportPriceHigh";
-  y->exportPriceHigh = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp,
-    u, 0, "exportPriceHigh")), &thisId);
+  thisId.fIdentifier = "importPriceHigh";
+  y->importPriceHigh = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp,
+    u, 0, "importPriceHigh")), &thisId);
+  thisId.fIdentifier = "importPriceLow";
+  y->importPriceLow = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp,
+    u, 0, "importPriceLow")), &thisId);
+  thisId.fIdentifier = "exportPrice";
+  y->exportPrice = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp, u,
+    0, "exportPrice")), &thisId);
   thisId.fIdentifier = "firstHighPeriod";
   y->firstHighPeriod = d_emlrt_marshallIn(sp, emlrtAlias(emlrtGetFieldR2013a(sp,
     u, 0, "firstHighPeriod")), &thisId);

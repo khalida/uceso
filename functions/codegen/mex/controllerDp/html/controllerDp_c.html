@@ -519,12 +519,12 @@
 <a name="507"><font color="#888888 "><i>  507   </i></font></a>
 <a name="508"><font color="#888888 "><i>  508   </i></font></a>    <font color="#117755"><i>/*  getGridPrices: Look-up function to return the grid-prices: */</i></font>
 <a name="509"><font color="#888888 "><i>  509   </i></font></a>    <font color="#117755"><i>/*  $/kWh */</i></font>
-<a name="510"><font color="#888888 "><i>  510   </i></font></a>    d0 = cfg-&gt;sim.exportPriceLow;
+<a name="510"><font color="#888888 "><i>  510   </i></font></a>    d0 = cfg-&gt;sim.importPriceLow;
 <a name="511"><font color="#888888 "><i>  511   </i></font></a>
 <a name="512"><font color="#888888 "><i>  512   </i></font></a>    <font color="#117755"><i>/*  $/kWh */</i></font>
 <a name="513"><font color="#888888 "><i>  513   </i></font></a>    <font color="#117755"><i>/*  set imports to peak tarriff if required 7AM = 10PM */</i></font>
 <a name="514"><font color="#888888 "><i>  514   </i></font></a>    <font color="#112266"><b>if</b></font> ((x &gt;= cfg-&gt;sim.firstHighPeriod) &amp;&amp; (x &lt;= cfg-&gt;sim.lastHighPeriod)) <b>{</b>
-<a name="515"><font color="#888888 "><i>  515   </i></font></a>      d0 = cfg-&gt;sim.exportPriceHigh;
+<a name="515"><font color="#888888 "><i>  515   </i></font></a>      d0 = cfg-&gt;sim.importPriceHigh;
 <a name="516"><font color="#888888 "><i>  516   </i></font></a>    <b>}</b>
 <a name="517"><font color="#888888 "><i>  517   </i></font></a>
 <a name="518"><font color="#888888 "><i>  518   </i></font></a>    i0 = importPrices-&gt;size[0];
@@ -538,7 +538,7 @@
 <a name="526"><font color="#888888 "><i>  526   </i></font></a>      emlrtDynamicBoundsCheckR2012b(t + 1, 1, i0, &amp;<a href="#var_qb_emlrtBCI" onclick="if (top) if (top.docHiliteMe) top.docHiliteMe(window, 'var_qb_emlrtBCI');" target="_self"><font color="#1122aa">qb_emlrtBCI</font></a>, sp);
 <a name="527"><font color="#888888 "><i>  527   </i></font></a>    <b>}</b>
 <a name="528"><font color="#888888 "><i>  528   </i></font></a>
-<a name="529"><font color="#888888 "><i>  529   </i></font></a>    exportPrices-&gt;data[t] = cfg-&gt;sim.importPrice;
+<a name="529"><font color="#888888 "><i>  529   </i></font></a>    exportPrices-&gt;data[t] = cfg-&gt;sim.exportPrice;
 <a name="530"><font color="#888888 "><i>  530   </i></font></a>    t++;
 <a name="531"><font color="#888888 "><i>  531   </i></font></a>    <font color="#112266"><b>if</b></font> (*<a href="controllerDp_data_c.html#var_emlrtBreakCheckR2012bFlagVar" onclick="if (top) if (top.docHiliteMe) top.docHiliteMe(window, 'var_emlrtBreakCheckR2012bFlagVar');" target="_self"><font color="#1122aa">emlrtBreakCheckR2012bFlagVar</font></a> != 0) <b>{</b>
 <a name="532"><font color="#888888 "><i>  532   </i></font></a>      emlrtBreakCheckR2012b(sp);

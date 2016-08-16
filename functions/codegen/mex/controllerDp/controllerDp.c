@@ -507,12 +507,12 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
 
     /*  getGridPrices: Look-up function to return the grid-prices: */
     /*  $/kWh */
-    d0 = cfg->sim.exportPriceLow;
+    d0 = cfg->sim.importPriceLow;
 
     /*  $/kWh */
     /*  set imports to peak tarriff if required 7AM = 10PM */
     if ((x >= cfg->sim.firstHighPeriod) && (x <= cfg->sim.lastHighPeriod)) {
-      d0 = cfg->sim.exportPriceHigh;
+      d0 = cfg->sim.importPriceHigh;
     }
 
     i0 = importPrices->size[0];
@@ -526,7 +526,7 @@ void controllerDp(const emlrtStack *sp, const struct0_T *cfg, const real_T
       emlrtDynamicBoundsCheckR2012b(t + 1, 1, i0, &qb_emlrtBCI, sp);
     }
 
-    exportPrices->data[t] = cfg->sim.importPrice;
+    exportPrices->data[t] = cfg->sim.exportPrice;
     t++;
     if (*emlrtBreakCheckR2012bFlagVar != 0) {
       emlrtBreakCheckR2012b(sp);

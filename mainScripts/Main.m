@@ -2,14 +2,22 @@
 %  (Unprincipled Controllers for Energy Storage Optimization)
 
 
-%% (Tidy up &) Load Configuration options
+%% Tidy up
 clearvars; close all; clc;
 tic;
-cfg = Config(pwd);
 
 
 %% Load Functions into Environment (script)
 LoadFunctions;
+
+
+%% Recompile compiled code (script)
+RecompileMexes;
+
+
+%% Load Configuration options
+cfg = Config(pwd);
+
 
 
 %% Load Data
@@ -30,7 +38,7 @@ disp('======= FORECAST TESTING =======');
 %% Plotting:
 disp('======= PLOTTING =======');
 if isequal(cfg.type, 'oso')
-    plotAllResultsDp( cfg, results, dataTrain)
+    plotAllResultsDp( cfg, results, dataTrain);
 else
     plotAllResults(cfg, results);
 end

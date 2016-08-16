@@ -21,8 +21,8 @@ nMethods = cfg.sim.nMethods;
 
 serialTime = dataTrain.time;
 
-%% 1a) Plot the performance of the overall methods
 
+%% 1a) Plot the performance of the overall methods
 fig_1a = figure();
 
 % Absolute Total Costs
@@ -84,79 +84,6 @@ ylabel('Rel. Dmg. Cost []');
 print(fig_1a, '-dpdf', [cfg.sav.resultsDir filesep ...
     'allCostResults.pdf']);
 
-%% 1b) As above, but divide by number of customers:
-
-for nCust = cfg.sim.nCustomers
-    fig_1b = figure();
-    
-    % Instance indexes for this number of customers:
-    instanceIdxs = cfg.sim.nCustomersByInstance==nCust;
-    
-    % Absolute Total Costs
-    subplot(3, 2, 1);
-    boxplot(totalCost(instanceIdxs, :) - ...
-        totalDamageCost(instanceIdxs, :), methodList);
-    
-    grid on;
-    xlabel('Method');
-    ylabel('Total Actual Cost (excl dmg cost) [$]');
-    hold off;
-    
-    % Relative Cost Ratios
-    subplot(3,2, 2);
-    
-    % Reference method godCast
-    refMethodIdx = ismember(methodList,'PFFC');
-    relativeCost = totalCost(instanceIdxs, :)./repmat(...
-        totalCost(instanceIdxs, refMethodIdx), [1, nMethods]);
-    boxplot(relativeCost, methodList);
-    grid on;
-    xlabel('Method');
-    ylabel('Relative Cost []');
-    
-    % Absolute cost savings
-    subplot(3, 2, 3);
-    noBatteryIdx = ismember(methodList, 'NB');
-    batteryValue = repmat(totalCost(instanceIdxs,noBatteryIdx),...
-        [1, nMethods]) - totalCost(instanceIdxs, :);
-    
-    boxplot(batteryValue, methodList);
-    grid on;
-    xlabel('Method');
-    ylabel('Cost Saved (net of degradation) [$]');
-    
-    % Relative cost savings
-    subplot(3, 2, 4);
-    relativeBatteryValue = batteryValue./repmat(...
-        batteryValue(:, refMethodIdx), [1, nMethods]);
-    
-    boxplot(relativeBatteryValue, methodList);
-    grid on;
-    xlabel('Method');
-    ylabel('Rel. Nett Cost Saved []');
-    
-    % Absolute battery damage cost
-    subplot(3, 2, 5);
-    boxplot(totalDamageCost(instanceIdxs, :), methodList);
-    grid on;
-    xlabel('Method');
-    ylabel('Damage Cost [$]');
-    
-    % Relative battery damage cost
-    subplot(3, 2, 6);
-    relativeDamageCost = totalDamageCost./repmat(...
-        totalDamageCost(:, refMethodIdx), [1, nMethods]);
-    
-    boxplot(relativeDamageCost, methodList);
-    grid on;
-    xlabel('Method');
-    ylabel('Rel. Dmg. Cost []');
-    
-    print(fig_1b, '-dpdf', [cfg.sav.resultsDir filesep ...
-        'allCostResults_nCust' num2str(nCust) '.pdf']);
-    
-    close(fig_1b);
-end
 
 %% 2. For forecast-driven methods plot the MSEs of Demand forecasts
 
@@ -299,5 +226,82 @@ grid on;
 
 print(fig_8, '-dpdf', [cfg.sav.resultsDir filesep ...
     'noiseToSignalRatioBoxPlot.pdf']);
+
+%% 9) Plot for paper; top-plot performance VS mean demand of aggregation
+% with each method's mean performance shown as a separate line:
+% and second and third row plots showing the 'noise:signal' ratio of the PV
+% and demand signals
+
+fig_9 = figure();
+ax1 = subtightplot(3,1,1);
+
+noBatteryIdx = ismember(methodList, 'NB');
+batteryValue = repmat(totalCost(:,noBatteryIdx),[1, nMethods]) - totalCost;
+
+% Find mean demand and pv values, over the instances at each aggregation
+% level:
+meanDemand = zeros(length(cfg.sim.nCustomers), 1);
+meanPv = zeros(length(cfg.sim.nCustomers), 1);
+batteryValueByAggregate = zeros(length(cfg.sim.nCustomers), nMethods);
+pvNoiseSignalByAggregate = zeros(length(cfg.sim.nCustomers), nMethods);
+demandNoiseSignalByAggregate = zeros(length(cfg.sim.nCustomers), nMethods);
+
+for nCustIdx = 1:length(cfg.sim.nCustomers)
+    nCust = cfg.sim.nCustomers(nCustIdx);
+    theseInstanceIdxs = cfg.sim.nCustomersByInstance == nCust;
+    meanDemand(nCustIdx, 1) = mean(mean(...
+        dataTrain.demand(:, theseInstanceIdxs, 1)));
+    
+    meanPv(nCustIdx, 1) = mean(mean(...
+        dataTrain.pv(:, theseInstanceIdxs, 1)));
+    
+    batteryValueByAggregate(nCustIdx, :) = mean(...
+        batteryValue(theseInstanceIdxs, :), 1);
+    
+    pvNoiseSignalByAggregate(nCustIdx, :) = mean(...
+        noiseSglRatioPv(theseInstanceIdxs, :), 1);
+    
+    demandNoiseSignalByAggregate(nCustIdx, :) = mean(...
+        noiseSglRatioDem(theseInstanceIdxs, :), 1);
+end
+
+plot(meanDemand, batteryValueByAggregate);
+legend(methodList);
+grid on;
+ylabel({'Mean Cost Saved','[$]'});
+set(gca, 'XTickLabel', '');
+
+ax2 = subtightplot(3,1,2);
+hold on;
+grid on;
+for idx = 1:nMethods
+    if ismember(idx, forecastDrivenIdxs)
+        plot(meanDemand, demandNoiseSignalByAggregate(:, idx));
+    else
+        plot(0, 0);
+    end
+end
+ylabel({'Noise:Signal Ratio',' of Demand []'});
+set(gca, 'XTickLabel', '');
+
+ax3 = subtightplot(3,1,3);
+hold on;
+grid on;
+for idx = 1:nMethods
+    if ismember(idx, forecastDrivenIdxs)
+        plot(meanDemand, pvNoiseSignalByAggregate(:, idx));
+    else
+        plot(0, 0);
+    end
+end
+ylabel({'Noise:Signal Ratio',' of PV []'});
+linkaxes([ax1, ax2, ax3], 'x');
+xlabel('Mean Demand of Aggregation [kWh/interval]');
+
+print(fig_9, '-dpdf', [cfg.sav.resultsDir filesep ...
+    'costSaved_VS_aggregationSize.pdf']);
+
+plotAsTixz([cfg.sav.resultsDir filesep ...
+    'costSaved_VS_aggregationSize.tikz']);
 
 end
