@@ -13,10 +13,10 @@ function cfg = Config(pwd)
 
 rng(42);            		% For repeatability
 cfg.type = 'oso';   	% Problem being solved: 'minMaxDemand', 'oso'
-cfg.description = 'osoLargeScale';
+cfg.description = 'osoTest';
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
-nProcAvail = 15;
+nProcAvail = 16;
 
 %% cfg.sim: Simulation Settings
 % Horizon length, in intervals:
@@ -24,7 +24,7 @@ cfg.sim.stepsPerHour = 2;
 cfg.sim.hoursPerDay = 24;
 cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 cfg.sim.nCustomers = [1, 5, 20, 50, 100];
-cfg.sim.nAggregates = 6;
+cfg.sim.nAggregates = 4;
 
 cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
 cfg.sim.nDaysTest = 24*7;           % days to run simulation for
@@ -39,7 +39,7 @@ else
     % Battery properties for Oso study only
     cfg.sim.batteryCapacityPerCustomer = 2;
     % Declare total battery size if we want to use single battery size:
-    cfg.sim.batteryCapacityTotal = 2;
+    % cfg.sim.batteryCapacityTotal = 2;
     cfg.sim.batteryEtaC = 0.94;
     cfg.sim.batteryEtaD = 0.94;
     cfg.sim.updateBattValue = false;
@@ -69,7 +69,7 @@ cfg.fc.nStart = 3;                      % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
 cfg.fc.mseEpochs = 1000;
-cfg.fc.maxTime = 45*60;                 % Max seconds to train one NN
+cfg.fc.maxTime = 60*60;                 % Max seconds to train one NN
 cfg.fc.nRecursive = 1;                  % No. of recursive feedbacks for RNN
 cfg.fc.clipNegative = true;             % Prevent output fcasts from being -ve
 cfg.fc.perfDiffThresh = 0.05;           % Performance diff. to notify of

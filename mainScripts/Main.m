@@ -11,13 +11,14 @@ tic;
 LoadFunctions;
 
 
-%% Recompile compiled code (script)
-RecompileMexes;
-
-
 %% Load Configuration options
 cfg = Config(pwd);
 
+
+%% Recompile compiled code (script)
+if strcmp(cfg.type, 'oso')
+    RecompileMexes;
+end
 
 
 %% Load Data

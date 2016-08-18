@@ -22,12 +22,9 @@ LoadFunctions;
 %% 1) Choose running options (set in Config file)
 cfg = Config(pwd);
 
-% Make some changes to make learning algorithm a bit easier!
-cfg.sim.horizon = 2;
-
 % Initilaize the Battery Object
 battery = Battery(getCfgForController(cfg), 1);
-nObservations = 100000;
+nObservations = 1000;
 
 %% 2) Generate (random) PV and demand data;
 muDemand = 5;
@@ -35,10 +32,10 @@ sigmaDemand = 5;
 muPv = 5;
 sigmaPv = 10;
 demandData = max(normalNumbers(muDemand, sigmaDemand, [nObservations, ...
-    cfg.sim.horizon]), 0);
+    cfg.sim.horizon]), 0)';
 
 pvData = max(normalNumbers(muPv, sigmaPv, [nObservations, ...
-    cfg.sim.horizon]), 0);
+    cfg.sim.horizon]), 0)';
 
 %% 3) Generate random battery states, and hours
 % A limitation of this approach is that there will be siginificant
@@ -55,28 +52,28 @@ dpSolutionsMex = zeros(nObservations, 1);
 for ii = 1:nObservations
     battery.state = batteryStates(ii);
     dpSolutionsMex(ii) = controllerDp_mex(getCfgForController(cfg),...
-        demandData(ii, :), pvData(ii, :), battery.getStruct(),...
+        demandData(:, ii), pvData(:, ii), battery.getStruct(),...
         hourNumbers(ii));
 end
 disp(['Running DP in MEX took: ' num2str(toc(runDpTimer))]);
 
-% runDpTimer = tic;
-% dpSolutionsMlab = zeros(nObservations, 1);
-% for ii = 1:nObservations
-%     battery.state = batteryStates(ii);
-%     dpSolutionsMlab(ii) = controllerDp(cfg, demandData(ii, :), ...
-%         pvData(ii, :), battery, hourNumbers(ii));
-% end
-% disp(['Running DP in Matlab took: ' num2str(toc(runDpTimer))]);
+runDpTimer = tic;
+dpSolutionsMlab = zeros(nObservations, 1);
+for ii = 1:nObservations
+    battery.state = batteryStates(ii);
+    dpSolutionsMlab(ii) = controllerDp(cfg, demandData(:, ii), ...
+        pvData(:, ii), battery, hourNumbers(ii));
+end
+disp(['Running DP in Matlab took: ' num2str(toc(runDpTimer))]);
 
 % % Check that results are the same
-% disp(['Max difference: ' num2str(max(abs(dpSolutionsMex - ...
-%     dpSolutionsMlab)))]);
+disp(['Max difference: ' num2str(max(abs(dpSolutionsMex - ...
+    dpSolutionsMlab)))]);
 
 %% 5) Train and evaluate NN;
 
 % Compose input vectors (& seperate to test and train data)
-featureVectors = [demandData, pvData, batteryStates, hourNumbers];
+featureVectors = [demandData', pvData', batteryStates, hourNumbers];
 [responseVectors, labels] = labelsToTargets(dpSolutionsMex);
 nTrain = floor(cfg.fc.trainRatio*nObservations);
 trainIdxs = 1:nTrain;
