@@ -138,19 +138,19 @@ classdef Battery < handle
             
             this.cumulativeValue = this.cumulativeValue + valueOverNB;
             
-            if this.cumulativeDamage > 1.0
-                warning('battery cumulative damage exceeded 1.0');
-            end
-            
-            if this.cumulativeValue < 0.0
-                disp('CumulativeValue: ');
-                disp(this.cumulativeValue);
-                disp('CumulativeDamage: ');
-                disp(this.cumulativeDamage);
-                disp('ValueEst: ');
-                disp(this.cumulativeValue/this.cumulativeDamage);
-                warning('WARN: battery cumulative value negative');
-            end
+            %if this.cumulativeDamage > 1.0
+            %    warning('battery cumulative damage exceeded 1.0');
+            %end
+            %
+            %if this.cumulativeValue < 0.0
+            %    disp('CumulativeValue: ');
+            %    disp(this.cumulativeValue);
+            %    disp('CumulativeDamage: ');
+            %    disp(this.cumulativeDamage);
+            %    disp('ValueEst: ');
+            %    disp(this.cumulativeValue/this.cumulativeDamage);
+            %   warning('WARN: battery cumulative value negative');
+            %end
         end
         
         % Constrain kWh charge decision to batteries capability
