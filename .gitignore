@@ -21,3 +21,5 @@ tmp/
 results/
 resultsMmd/
 resultsOso/
+functions/codegen/
+mainScripts/codegen/
