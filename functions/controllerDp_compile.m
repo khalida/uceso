@@ -1,7 +1,7 @@
 % CONTROLLERDP_COMPILE   Generate MEX-function controllerDp_mex from
 %  controllerDp.
 % 
-% Script generated from project 'controllerDp.prj' on 15-Aug-2016.
+% Script generated from project 'controllerDp.prj' on 17-Aug-2016.
 % 
 % See also CODER, CODER.CONFIG, CODER.TYPEOF, CODEGEN.
 
@@ -16,17 +16,17 @@ ARGS{1}{1} = struct;
 ARGS{1}{1}.sim = struct;
 ARGS{1}{1}.sim.horizon = coder.typeof(0);
 ARGS{1}{1}.sim.stepsPerHour = coder.typeof(0);
+ARGS{1}{1}.sim.batteryChargingFactor = coder.typeof(0);
+ARGS{1}{1}.sim.eps = coder.typeof(0);
 ARGS{1}{1}.sim.batteryEtaC = coder.typeof(0);
 ARGS{1}{1}.sim.batteryEtaD = coder.typeof(0);
+ARGS{1}{1}.sim.updateBattValue = coder.typeof(false);
 ARGS{1}{1}.sim.minCostDiff = coder.typeof(0);
 ARGS{1}{1}.sim.importPriceHigh = coder.typeof(0);
 ARGS{1}{1}.sim.importPriceLow = coder.typeof(0);
 ARGS{1}{1}.sim.exportPrice = coder.typeof(0);
 ARGS{1}{1}.sim.firstHighPeriod = coder.typeof(0);
 ARGS{1}{1}.sim.lastHighPeriod = coder.typeof(0);
-ARGS{1}{1}.sim.batteryChargingFactor = coder.typeof(0);
-ARGS{1}{1}.sim.eps = coder.typeof(0);
-ARGS{1}{1}.sim.updateBattValue = coder.typeof(false);
 ARGS{1}{1}.sim = coder.typeof(ARGS{1}{1}.sim);
 ARGS{1}{1}.bat = struct;
 ARGS{1}{1}.bat.costPerKwhUsed = coder.typeof(0);
@@ -50,17 +50,17 @@ ARGS{1}{4}.cfg = struct;
 ARGS{1}{4}.cfg.sim = struct;
 ARGS{1}{4}.cfg.sim.horizon = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.stepsPerHour = coder.typeof(0);
+ARGS{1}{4}.cfg.sim.batteryChargingFactor = coder.typeof(0);
+ARGS{1}{4}.cfg.sim.eps = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.batteryEtaC = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.batteryEtaD = coder.typeof(0);
+ARGS{1}{4}.cfg.sim.updateBattValue = coder.typeof(false);
 ARGS{1}{4}.cfg.sim.minCostDiff = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.importPriceHigh = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.importPriceLow = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.exportPrice = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.firstHighPeriod = coder.typeof(0);
 ARGS{1}{4}.cfg.sim.lastHighPeriod = coder.typeof(0);
-ARGS{1}{4}.cfg.sim.batteryChargingFactor = coder.typeof(0);
-ARGS{1}{4}.cfg.sim.eps = coder.typeof(0);
-ARGS{1}{4}.cfg.sim.updateBattValue = coder.typeof(false);
 ARGS{1}{4}.cfg.sim = coder.typeof(ARGS{1}{4}.cfg.sim);
 ARGS{1}{4}.cfg.bat = struct;
 ARGS{1}{4}.cfg.bat.costPerKwhUsed = coder.typeof(0);
