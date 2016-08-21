@@ -21,6 +21,7 @@ cfgForController.bat.maxLifeHours = cfg.bat.maxLifeHours;
 
 if strcmp(cfg.type, 'oso')
     cfgForController.opt.statesPerKwh = cfg.opt.statesPerKwh;
+    cfgForController.opt.statesTotal = cfg.opt.statesTotal;
     
     cfgForController.sim.batteryEtaC = cfg.sim.batteryEtaC;
     cfgForController.sim.batteryEtaD = cfg.sim.batteryEtaD;

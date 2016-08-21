@@ -30,9 +30,15 @@ classdef Battery < handle
                 
                 if isequal(obj.cfg.type, 'oso')
                     % Initialize battery for Oso problem
-                    obj.statesInt = (0:(floor(capacity*...
-                        cfg.opt.statesPerKwh))) + 1;
-                    obj.increment = 1/cfg.opt.statesPerKwh;
+                    if cfg.opt.statesTotal == 0
+                        obj.statesInt = (0:(floor(capacity*...
+                            cfg.opt.statesPerKwh))) + 1;
+                        
+                        obj.increment = 1/cfg.opt.statesPerKwh;
+                    else
+                        obj.statesInt = (0:cfg.opt.statesTotal) + 1;
+                        obj.increment = capacity/cfg.opt.statesTotal;
+                    end
                     obj.state = floor((0.5*capacity)/obj.increment)+1;
                     obj.SoC = (obj.state-1)*obj.increment;
                     obj.statesKwh = (obj.statesInt-1).*obj.increment;

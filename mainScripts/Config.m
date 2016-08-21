@@ -99,6 +99,7 @@ if isequal(cfg.type, 'minMaxDemand')
     cfg.opt.chargeWhenCan = false;
 else
     cfg.opt.statesPerKwh = 8;         % For dynamic program
+    cfg.opt.statesTotal = 32;	      % If not 0, use a single resolution for full battery size
 end
 
 
@@ -178,14 +179,20 @@ if isequal(cfg.type, 'minMaxDemand')
         nCustString '_batt_' num2str(100*cfg.sim.batteryCapacityRatio) ...
         'pc__nAgg_' num2str(cfg.sim.nAggregates) CDstring '.mat'];
 else
+    if cfg.opt.statesTotal == 0
+        statesString = [num2str(cfg.opt.statesPerKwh) 'spk'];
+    else
+        statesString = [num2str(cfg.opt.statesTotal) 'sTtl'];
+    end
+    
     if ~isfield(cfg.sim, 'batteryCapacityTotal');
         cfg.sav.finalFileName = [cfg.sav.resultsDir filesep 'batt_' ...
             num2str(cfg.sim.batteryCapacityPerCustomer) 'kWhPerC_' ...
-            num2str(cfg.opt.statesPerKwh) 'spk.mat'];
+            statesString '.mat'];
     else
         cfg.sav.finalFileName = [cfg.sav.resultsDir filesep 'batt_' ...
             num2str(cfg.sim.batteryCapacityTotal) 'kWhTot_' ...
-            num2str(cfg.opt.statesPerKwh) 'spk.mat'];
+            statesString '.mat'];
     end
 end
 

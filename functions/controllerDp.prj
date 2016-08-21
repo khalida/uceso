@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.coder" plugin-version="R2015b">
-  <configuration build-checksum="299038523" file="C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\controllerDp.prj" location="C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions" name="controllerDp" target="target.unifiedcoder" target-name="MATLAB Coder">
+  <configuration build-checksum="550081005" file="C:\Users\Khalid Abdulla\Documents\PhD\2016_04_04_uceso\functions\controllerDp.prj" location="C:\Users\Khalid Abdulla\Documents\PhD\2016_04_04_uceso\functions" name="controllerDp" target="target.unifiedcoder" target-name="MATLAB Coder">
     <profile key="profile.mex">
       <param.BuiltInstrumentedMex>false</param.BuiltInstrumentedMex>
       <param.RanInstrumentedMex>false</param.RanInstrumentedMex>
@@ -667,7 +667,7 @@
       </unset>
     </profile>
     <param.objective>option.objective.c</param.objective>
-    <param.WorkflowStep>workflowSummary</param.WorkflowStep>
+    <param.WorkflowStep>verifyCompatibility</param.WorkflowStep>
     <param.TestSnippets>
       <item>controllerDp(getCfgForController(cfg), rand(48,1), rand(48,1), batt.getStruct(), 1)</item>
       <item>controllerDp(getCfgForController(cfg), rand(12,1), rand(12,1), battery.getStruct(), 1)</item>
@@ -691,7 +691,7 @@
     <param.AutoInferUnboundedSizeThreshold>2048</param.AutoInferUnboundedSizeThreshold>
     <param.EnableFixedPointStep>false</param.EnableFixedPointStep>
     <param.EnableScreener>true</param.EnableScreener>
-    <param.AnnotationChecksum>3146992973</param.AnnotationChecksum>
+    <param.AnnotationChecksum>1755968764</param.AnnotationChecksum>
     <var.LegacyTarget />
     <var.MirrorOnOpen>false</var.MirrorOnOpen>
     <param.FixedPointEnabled>false</param.FixedPointEnabled>
@@ -701,11 +701,11 @@
     <var.gc.lastOutputRoot>codegen\mex\controllerDp</var.gc.lastOutputRoot>
     <var.gc.preBuildChecksum>3932126192</var.gc.preBuildChecksum>
     <var.cfi.lastOutputRoot>codegen\mex\controllerDp</var.cfi.lastOutputRoot>
-    <var.cfi.preBuildChecksum>3154962743</var.cfi.preBuildChecksum>
-    <var.lastCfiTestSnippet>controllerDp(cfg, demandData(1, :), pvData(1, :), nonClassBatt, hourNumbers(1))</var.lastCfiTestSnippet>
+    <var.cfi.preBuildChecksum>550081005</var.cfi.preBuildChecksum>
+    <var.lastCfiTestSnippet>controllerDp(getCfgForController(cfg), rand(48,1), rand(48,1), batt.getStruct(), 1)</var.lastCfiTestSnippet>
     <var.outdatedOnRestore>false</var.outdatedOnRestore>
     <var.lastUserSourceChecksum>&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;&lt;checksum&gt;&lt;includedFiles&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\controllerDp.m&lt;/file&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\getGridPrices.m&lt;/file&gt;&lt;/includedFiles&gt;&lt;value&gt;3084513737&lt;/value&gt;&lt;/checksum&gt;</var.lastUserSourceChecksum>
-    <var.sourceSetState>&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;&lt;sourceModel&gt;&lt;primarySourceFiles&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\controllerDp.m&lt;/file&gt;&lt;file&gt;C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\getGridPrices.m&lt;/file&gt;&lt;/primarySourceFiles&gt;&lt;fixedPointSourceFiles/&gt;&lt;fixedPointSourceRegistered&gt;false&lt;/fixedPointSourceRegistered&gt;&lt;fixedPointSourceSelected&gt;false&lt;/fixedPointSourceSelected&gt;&lt;/sourceModel&gt;</var.sourceSetState>
+    <var.sourceSetState>&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;&lt;sourceModel&gt;&lt;primarySourceFiles&gt;&lt;file&gt;C:\Users\Khalid Abdulla\Documents\PhD\2016_04_04_uceso\functions\controllerDp.m&lt;/file&gt;&lt;file&gt;C:\Users\Khalid Abdulla\Documents\PhD\2016_04_04_uceso\functions\getGridPrices.m&lt;/file&gt;&lt;/primarySourceFiles&gt;&lt;fixedPointSourceFiles/&gt;&lt;fixedPointSourceRegistered&gt;false&lt;/fixedPointSourceRegistered&gt;&lt;fixedPointSourceSelected&gt;false&lt;/fixedPointSourceSelected&gt;&lt;/sourceModel&gt;</var.sourceSetState>
     <param.forceMexBuild>false</param.forceMexBuild>
     <param.configImportActive>false</param.configImportActive>
     <var.boundToGui>true</var.boundToGui>
@@ -1041,6 +1041,14 @@
                 <UserDefined>false</UserDefined>
                 <Complex>false</Complex>
               </Field>
+              <Field Name="statesTotal">
+                <Class>double</Class>
+                <Size>1 x 1</Size>
+                <Value />
+                <InitialValue />
+                <UserDefined>false</UserDefined>
+                <Complex>false</Complex>
+              </Field>
             </Field>
           </Input>
           <Input Name="demForecast">
@@ -1287,6 +1295,14 @@
                   <UserDefined>false</UserDefined>
                   <Complex>false</Complex>
                 </Field>
+                <Field Name="statesTotal">
+                  <Class>double</Class>
+                  <Size>1 x 1</Size>
+                  <Value />
+                  <InitialValue />
+                  <UserDefined>false</UserDefined>
+                  <Complex>false</Complex>
+                </Field>
               </Field>
             </Field>
             <Field Name="SoC">
@@ -1339,7 +1355,7 @@
             </Field>
             <Field Name="statesInt">
               <Class>double</Class>
-              <Size>1 x :17</Size>
+              <Size>1 x :33</Size>
               <Value />
               <InitialValue />
               <UserDefined>false</UserDefined>
@@ -1347,7 +1363,7 @@
             </Field>
             <Field Name="statesKwh">
               <Class>double</Class>
-              <Size>1 x :17</Size>
+              <Size>1 x :33</Size>
               <Value />
               <InitialValue />
               <UserDefined>false</UserDefined>
@@ -1407,7 +1423,7 @@
     </fileset.entrypoints>
     <fileset.testbench />
     <build-deliverables>
-      <file location="C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions" name="controllerDp_mex.mexw64" optional="false">C:\LocalData\Documents\Documents\PhD\21_Projects\2016_04_07_uceso\functions\controllerDp_mex.mexw64</file>
+      <file location="C:\Users\Khalid Abdulla\Documents\PhD\2016_04_04_uceso\functions" name="controllerDp_mex.mexw64" optional="false">C:\Users\Khalid Abdulla\Documents\PhD\2016_04_04_uceso\functions\controllerDp_mex.mexw64</file>
     </build-deliverables>
     <workflow />
     <matlab>
