@@ -11,9 +11,9 @@
 
 function cfg = Config(pwd)
 
-rng(42);            		% For repeatability
-cfg.type = 'oso';   	% Problem being solved: 'minMaxDemand', 'oso'
-cfg.description = 'osoTest';
+rng(42);                        % For repeatability
+cfg.type = 'oso';   	% Problem: 'minMaxDemand', 'oso'
+cfg.description = 'randomInputs_preSubtract';
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
 nProcAvail = 16;
@@ -46,7 +46,7 @@ else
     cfg.sim.minCostDiff = 1e-6;
     cfg.sim.exportPrice = 0.05;
     cfg.sim.importPriceHigh = 0.4;
-    cfg.sim.importPriceLow = 0.1;
+    cfg.sim.importPriceLow = 0.2;
     cfg.sim.firstHighPeriod = 14;
     cfg.sim.lastHighPeriod = 43;
 end
@@ -81,15 +81,16 @@ cfg.fc.lagsToInclude = 1:cfg.fc.nLags;
 cfg.fc.nTrainShuffles = 30;             % # of shuffles to consider
 cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % day-pairs to swap
 cfg.fc.nNodesFF = 50;                   % No. of nodes in FF ctrler
-cfg.fc.knowFutureFF = false;            % FF ctrlr sees future? (true for testing only)
+cfg.fc.knowFutureFF = true;            % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
 cfg.fc.randomizeInterval = 7;
 cfg.fc.randTrainIdx = true;             % whether to randomize training indexes
+cfg.fc.createNetDemand = true;          % whether to convert demand/PC to net demand
 
 
 %% cfg.opt: Optimization settings
 cfg.opt.knowDemandNow = false;        % Current demand known to optimizer?
-cfg.opt.setPointRecourse = true;      % Apply set point recourse?
+cfg.opt.setPointRecourse = false;     % Apply set point recourse?
 cfg.opt.suppressOutput = cfg.fc.suppressOutput;
 if isequal(cfg.type, 'minMaxDemand')
     cfg.opt.secondWeight = 0;         % Of secondary objective (chargeWhenCan)

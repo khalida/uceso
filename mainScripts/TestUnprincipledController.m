@@ -1,4 +1,4 @@
-%% Script to test the performance of an Forecast-free Controller, when
+%% Script to test the performance of a Forecast-free Controller, when
 % Trained using output from an exact controller (in our application)
 
 %% minMaxDemand controller has been implemented in mpcController:
@@ -8,19 +8,19 @@
 
 % And it requires the following INPUTS:
 % cfg:              Structure of running options
-% trainedModel:     Trained forecast (or unprincipled controller) model
+% trainedModel:     Trained forecast (or integrated controller) model
 % godCast:          Matrix of perfect foresight forecasts
-% denmand:          Demand time series on which to run model [kWh]
+% demand:           Demand time series on which to run model [kWh]
 % demandDelays:     Initial nLag lags of demand [kWh]
-% battery:          Structure containing information about the batt
+% battery:          Object containing information about the battery
 % runControl:       Running options specific to that case/method
 
 
 %% oso controller implemented in controllerDp.m
 % [ totalCost, chargeProfile, totalDamageCost, demForecastUsed,...
-%    pvForecastUsed, respVecs, featVecs, bestCTG, imp, exp] = mpcControllerDp(cfg, ...
-%    trainedModel, demGodCast, demand, pvGodCast, pv, demandDelays,...
-%    pvDelays, battery, runControl)
+%    pvForecastUsed, respVecs, featVecs, bestCTG, imp, exp] = ...
+%    mpcControllerDp(cfg, trainedModel, demGodCast, demand, pvGodCast, ...
+%    pv, demandDelays, pvDelays, battery, runControl)
 
 % And it requires the following INPUTS:
 % cfg:              Structure of running options
@@ -44,23 +44,20 @@ plotEachTrainLength = true;  %#ok<*UNRCH>
 % Load from Config():
 cfg = Config(pwd);
 
-% Reduce dimensionality of data; assume we have 6-hour time-steps
-% cfg.sim.horizon = 6;
-% cfg.fc.seasonalPeriod = 6;
-% cfg.fc.nLags = 6;
-% cfg.sim.stepsPerHour = 0.25;
-% cfg.sim.stepsPerDay = 6;
-% cfg.fc.minimizeOverFirst = 6;
-% cfg.sim.firstHighPeriod = 2;
-% cfg.sim.lastHighPeriod = 5;
+
+%% Recompile mexes if required:
+if strcmp(cfg.type, 'oso')
+    RecompileMexes;
+end
 
 
 %% Declare properties of artificial demand / pv signal
-sglMagnitude = 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
-noiseMagnitudes = sglMagnitude.*[0, 0.5];   % several noise levels to run over
-tsTrainLengths = [52 104];                           % several train lengtsh to run over
-tsTestLength = 52*cfg.sim.horizon*cfg.sim.billingPeriodDays;
+sglMagnitude = 0; % 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
+noiseMagnitudes = 5/cfg.sim.stepsPerHour; % sglMagnitude.*[0.5];        % noise levels to run
+tsTrainLengths = [1 10 100];              % weeks of training data
+tsTestLength = 10*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
+allRegressionAxes = zeros(length(noiseMagnitudes), length(tsTrainLengths));
 
 %% Initialize results vectors
 % NB: performance is Peak reduction ratio for minMaxDemand (high good), for
@@ -206,8 +203,6 @@ for tsTrIdx = 1:length(tsTrainLengths)
         
         if isequal(cfg.type, 'oso')
             % How often to randomise storage SoC; train in robustness
-            runControl.randomizeInterval = cfg.fc.randomizeInterval;
-            
             [ ~, ~, ~, ~, ~, responseGc, featureVectorGc, bestCTG, imp,...
                 exp] = mpcControllerDp(cfg, [], godCastTrainDem,...
                 trainDemandData, godCastTrainPv, trainPvData,...
@@ -215,6 +210,11 @@ for tsTrIdx = 1:length(tsTrainLengths)
             
             % featVec = [nLag prev dem, (demandNow), nLag prev pv, ...
             % (pvNow), SoC, hourNum]
+            
+            % Convert pv/demand previous values to
+            if cfg.fc.createNetDemand
+                featureVectorGc(:, [1:cfg.fc.nLags]) = 
+            end
             
         else
             [ ~, ~, ~, responseGc, featureVectorGc, ~] = mpcController(...
@@ -254,10 +254,20 @@ for tsTrIdx = 1:length(tsTrainLengths)
             estimatedRespVecsVal = forecastFfnn(cfg, ffController, ...
                 featVecsVal);
             
-            plotregression(respVecsVal, estimatedRespVecsVal);
-            title('Trained FF Controller i/o mapping perf.');
+            allRegressionAxes(noiseIdx, tsTrIdx) = ...
+                scatter(respVecsVal, estimatedRespVecsVal);
+            
+            hold on; grid on;
+            hline = refline(1,0); hline.Color='r'; hline.LineWidth=1.5;
+            
             saveas(gcf, [cfg.sav.resultsDir filesep 'reg_nseIdx'...
                 num2str(noiseIdx) 'tsIdx' num2str(tsTrIdx) '.fig']);
+            
+            xlabel({['Train Length=' num2str(tsTrainLength)],...
+                'Control Response'});
+            
+            ylabel({['Noise:Signal=' num2str(noiseMagnitude)],...
+                'NN Response'});
         end
         
         
@@ -557,6 +567,8 @@ end
 % xlabel('No. of training billing periods');
 % grid on;
 
+
+
 fig_1 = figure();
 for idx = 1:length(tsTrainLengths)
     subplot(length(tsTrainLengths), 2, 2*idx-1);
@@ -608,6 +620,46 @@ ylabel('Estimated noise-to-signal ratio');
 print(fig_2, '-dpdf', [cfg.sav.resultsDir filesep ...
     'Actual_noise_to_signal_ratios.pdf']);
 
+%% Combine the individual regression plots into a larger subplot:
+allRegressionPlots = figure; % create new figure to paste regressions into
+plotGaps = [0.04 0.04];
+
+for noiseIdx = 1:length(noiseMagnitudes)
+    noistMagnitude = noiseMagnitudes(noiseIdx);
+    
+    for tsTrIdx = 1:length(tsTrainLengths)
+        tsTrainLength = tsTrainLengths(tsTrIdx);
+        
+        thisFileName = [cfg.sav.resultsDir filesep 'reg_nseIdx'...
+            num2str(noiseIdx) 'tsIdx' num2str(tsTrIdx) '.fig'];
+        
+        h1 = openfig(thisFileName, 'reuse'); %open existing figure
+        ax1 = gca; %get handle to axes of figure
+        
+        plotIdx = (noiseIdx-1)*length(tsTrainLengths) + tsTrIdx;
+        
+        figure(allRegressionPlots);
+        thisSub = subtightplot(length(noiseMagnitudes), length(tsTrainLengths),...
+            plotIdx, plotGaps);
+        
+        xlabel(['Train Data: ' num2str(tsTrainLength) ' weeks']);
+        axis square;
+        grid on;
+        
+        thisFig = get(ax1, 'children'); %get handle to all children in fig
+        copyobj(thisFig, thisSub);
+        
+    end
+end
+
+allRegressionPlots.PaperUnits = 'inches';
+allRegressionPlots.PaperPosition = [0 0 6 4];
+
+figure(allRegressionPlots);
+print(allRegressionPlots, '-dpdf', [cfg.sav.resultsDir filesep ...
+    'all_regression_results.pdf']);
+
+% plotAsTixz([cfg.sav.resultsDir filesep 'all_regression_results.tikz']);
 
 % And the data:
 save([cfg.sav.resultsDir filesep 'TestFcastFreeResults.mat'], '-v7.3');
@@ -639,3 +691,4 @@ save([cfg.sav.resultsDir filesep 'TestFcastFreeResults.mat'], '-v7.3');
 % ylabel('b0_Up_raw from t-series simulation');
 
 toc;
+hallelujah;
