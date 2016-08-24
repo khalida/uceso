@@ -46,11 +46,21 @@ batteryValues = zeros(1, nIdxs);
 
 % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
 % hourNum]
+
 if cfg.opt.knowDemandNow
-    nFeat = 2*length(cfg.fc.lagsToInclude) + 4;
+    if cfg.fc.createNetDemand
+        nFeat = length(cfg.fc.lagsToInclude) + 4;
+    else
+        nFeat = 2*length(cfg.fc.lagsToInclude) + 4;
+    end
 else
-    nFeat = 2*length(cfg.fc.lagsToInclude) + 2;
+    if cfg.fc.createNetDemand
+        nFeat = length(cfg.fc.lagsToInclude) + 2;
+    else
+        nFeat = 2*length(cfg.fc.lagsToInclude) + 2;
+    end
 end
+
 featVecs = zeros(nFeat, nIdxs);
 
 %% Run through time series
@@ -75,17 +85,56 @@ for idx = 1:nIdxs;
     imp(idx) = importPrice;
     exp(idx) = exportPrice;
     
-    % Create Feature/Response Vec for FF controller training/use:
-    % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
-    % hourNum]
-    if cfg.opt.knowDemandNow
-        featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1));...
-            demandNow; pvDelays(end - (cfg.fc.lagsToInclude - 1)); ...
-            pvNow; battery.SoC; hourNow];
+    % Create Feature/Response Vec for FF controller training:
+    if cfg.fc.createNetDemand
+        if cfg.fc.knowFutureFF
+            % featVec = [futureNetDemand, (netDemandNow), SoC, hourNum]
+            if cfg.opt.knowDemandNow
+                featVecs(:, idx) = [demand(idx:(idx + cfg.sim.horizon - 1)) - ...
+                    pv(idx:(idx + cfg.sim.horizon - 1)); demandNow - pvNow; ...
+                    battery.SoC; hourNow];
+            else
+                featVecs(:, idx) = [demand(idx:(idx + cfg.sim.horizon - 1)) - ...
+                    pv(idx:(idx + cfg.sim.horizon - 1)); battery.SoC; hourNow];
+            end
+        else
+            % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
+            % hourNum]
+            if cfg.opt.knowDemandNow
+                featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1)) - ...
+                    pvDelays(end - (cfg.fc.lagsToInclude - 1)); ...
+                    demandNow - pvNow; battery.SoC; hourNow];
+            else
+                featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1)) - ...
+                    pvDelays(end - (cfg.fc.lagsToInclude - 1)); ...
+                    battery.SoC; hourNow];
+            end
+        end
     else
-        featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1));...
-            pvDelays(end - (cfg.fc.lagsToInclude - 1)); battery.SoC; ...
-            hourNow];
+        if cfg.fc.knowFutureFF
+            % featVec = [futureDemand, (demandNow), futurePv, (pvNow), SoC,...
+            % hourNum]
+            if cfg.opt.knowDemandNow
+                featVecs(:, idx) = [demand(idx:(idx + cfg.sim.horizon - 1));...
+                    demandNow; pv(idx:(idx + cfg.sim.horizon - 1)); ...
+                    pvNow; battery.SoC; hourNow];
+            else
+                featVecs(:, idx) = [demand(idx:(idx + cfg.sim.horizon - 1));...
+                    pv(idx:(idx + cfg.sim.horizon - 1)); battery.SoC; hourNow];
+            end
+        else
+            % featVec = [nLag prev dem, (demandNow), nLag prev pv, (pvNow), SoC,...
+            % hourNum]
+            if cfg.opt.knowDemandNow
+                featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1));...
+                    demandNow; pvDelays(end - (cfg.fc.lagsToInclude - 1)); ...
+                    pvNow; battery.SoC; hourNow];
+            else
+                featVecs(:, idx) = [demandDelays(end - (cfg.fc.lagsToInclude - 1));...
+                    pvDelays(end - (cfg.fc.lagsToInclude - 1)); battery.SoC; ...
+                    hourNow];
+            end
+        end
     end
     
     %%%% NO BATTERY %%%%

@@ -16,9 +16,9 @@ cfg = Config(pwd);
 
 
 %% Recompile compiled code (script)
-if strcmp(cfg.type, 'oso')
-    RecompileMexes;
-end
+%if strcmp(cfg.type, 'oso')
+%    RecompileMexes;
+%end
 
 
 %% Load Data
