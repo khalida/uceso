@@ -53,8 +53,8 @@ end
 
 %% Declare properties of artificial demand / pv signal
 sglMagnitude = 5/cfg.sim.stepsPerHour;  % peak of 5kWh/hour
-noiseMagnitudes = sglMagnitude.*[0 0.25 0.5 1.0];        % noise levels to run
-tsTrainLengths = [1 10 100];              % weeks of training data
+noiseMagnitudes = sglMagnitude.*[0.25 1.0];        % noise levels to run
+tsTrainLengths = [10 20];              % weeks of training data
 tsTestLength = 10*cfg.sim.horizon*cfg.sim.billingPeriodDays;
 
 

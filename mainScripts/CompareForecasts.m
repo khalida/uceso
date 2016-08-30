@@ -21,9 +21,10 @@ end
 
 %% Train and compare multiple forecast methods:
 
-parfor instance = 1:(cfg.sim.nInstances)
-    demand_train = demandDataTrain(:, instance);
-    demand_test = demandDataTest(:, instance);
+for instance = 1:(cfg.sim.nInstances)
+% parfor instance = 1:(cfg.sim.nInstances)
+    demand_train = demandDataTrain.demand(:, instance);
+    demand_test = demandDataTest.demand(:, instance);
     
     for fcIdx = 1:length(forecastMethods)
         

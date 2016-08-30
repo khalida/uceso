@@ -1,0 +1,128 @@
+{
+	// Run management
+	"caseName"			: "dataImport",			// (to add to save dir)
+
+	// Multiple run settings to iterate over:
+	"battSizes"				: [3],				// battery nominal sizes in kWh
+	"damageTypeOptimisation": ["fixed"],		// ["fixed", "modelStatic"], damage models for optimization
+	"damageTypeLife"		: ["fixed"],		//["fixed", "modelStatic", "modelRF"],
+	"discountFactor"		: [1.0], 				// cost from stage t (0, 1,...T-1) in DP is weighted by discoutFactor^t.
+	"ctrlTypes" 			: ["setPointBasic", "setPoint", "SDP"],			//["setPointBasic", "setPoint", "SDP"],
+	"fcTypes"				: ["NPcast", "godCast"], 		//["NP_no_dmg", "NPcast","mlrPoint", "mlrCast", "godCast_no_dmg", "godCast"],
+
+	// Storage
+	"maxCurrentRatio" 		: 4.0, 				// ratio of maximum (charge/discharge) current to nominal currents
+	"battAge_Ich_nom"		: 0.25, //0.125, 	// Based on factor "maxCurrentRatio" reduction of max charge current (0.5C)
+	"battAge_Id_nom"		: 0.5, //0.25, 	// Based on factor "maxCurrentRatio" reduction of max discharge current (1.0C)
+	"eta_c" 				: 0.94,				// [] (charge efficiency)
+	"eta_d" 				: 0.94,				// [] (discharge efficiency), based on 0.92 round-trip DC efficiency
+	"storageInitSoC" 		: 50.0,				// [%], starting state-of-charge
+
+	"replaceCost_per_kWh"	: 250.0,	//[AU$], initial replacement cost
+	"updateReplaceCost"		: false, 	//true,	// Whether to update replacement cost with value delivered by battery
+	"updateRCafterIntervals": 100,				// No. of intervals to wait before starting to update costs (avoid instability)
+	"fromCustomerNumber"	: 1,				// No. of first house to consider
+	"toCustomerNumber"		: 2,    	//100,		// No. of last house to consider
+
+	// Damage modelling
+	"calendarDamage"		: true, //false,	// Whether to include calendar damage of battery
+	"maxBattLifeYrs"		: 10.0,				// For calendar damage
+	"considerCurrents"		: true, 			// whether to consider charge/discharge currents in damage model
+	"SoC_upperMargin"		: 5.0,				// Do not allow SoC max to go over 100-x%
+	"SoC_lowerMargin"		: 5.0,				// Do not allow SoC min to be below y%
+	"SoC_atEndOfLife"		: 100.0,			// % of starting capacity at 'end of life'
+
+	// Prices
+	"offPeakPrice"			: 0.20, // 0.20,			// [$/kWh]
+	"onPeakPrice"			: 0.40, //0.40,			// [$/kWh]
+ 	"onPeakStartHour"		: 7,
+ 	"onPeakStopHour"		: 22,
+	"exportPrice"			: 0.05, //0.05,			// [$/kWh] (based on recent IPART announcement on NSW FiT)
+
+	// Dynamic Program / Optimization
+	"S_per_kWh"				: [8],			// States per kWh from finest to coarsest
+	"T" 					: [48],			// No. of intervals of each size in horizon (STAGES), NB: 1 horizon assumed as seasonal period for forecasting
+	"tStep"					: [30],		// No. mins intervals last for (finest to coarsest)
+	"N" 					: 1,			// number of scenarios for forecasts
+	"stackSize"				: 3,			// stack-size for online RF counting
+	"nIntervals" 			: 50400, 		    // No. of intervals (horizons) to solve (of finest resolution)
+	"seeFirstInterval"		: false,		// Whether controller can see true generation/demand for current interval
+	"SPrecourse" 			: false,			// whether or not to include set-point recourse of SDP decisions to prevent export
+	"valueFinalStorage"     : false,		// whether to assign value to storage at end of final stage within a horizon (reduce horizon-myopia)
+	"importanceOfFinalStorage"	: 1.0,		// Scaling factor for importance of final stage storage
+	"initialFinalCTG" 		: 1000,			// initial value of final CTG (for iterative soln)
+	"percentDiffThreshold"  : 1e-6,			// for iterative soln of final CTG
+	"initialBestCTG" 		: 9e9,			// initial value
+	"eps"					: 1e-12,		// Small value to prevent numerical errors with constraint checking etc.
+	"battTargetLevel"		: 50.0,			// Battery target SoC [%] (for advanced set-point)
+
+	// Forecasting
+	"trainRatio"			: 0.5,			// ratio of input data used to train forecast models
+	"includeConstant"		: true,			// Include column of constants (1s) in MLR?
+	"nPreviousPeriods"		: 1,			// No. of previous periods to use as features in MLR forecast
+
+	// Forecast files (so external forecasts can be used)
+	"demandForecastFile" 		: "./data/demandFcast1.csv",
+	"generationForecastFile" 	: "./data/generationFcast1.csv",
+	"importPriceForecastFile" 	: "./data/importPriceFcast1.csv",
+	"exportPriceForecastFile" 	: "./data/exportPriceFcast1.csv",
+
+	// Historic files (or folders where multiple files stored):
+	// AUSGRID
+	"demandHistFile" 		: "./AusGrid_data/2011_2013/demand/",
+	"generationHistFile"  	: "./AusGrid_data/2011_2013/PV/",
+	"importPriceHistFile" 	: "./AusGrid_data/2011_2013/price/2011_2013_AusGrid_importPrice.csv",
+	"exportPriceHistFile" 	: "./AusGrid_data/2011_2013/price/2011_2013_AusGrid_exportPrice.csv",
+	
+	// Historic files (or folders where multiple files stored)
+	// PECAN STREET
+	//"demandHistFile" 		: "./data/PecanStreet_data/2013_2014/demand/",
+	//"generationHistFile"  	: "./data/PecanStreet_data/2013_2014/PV/",
+	//"importPriceHistFile" 	: "./data/PecanStreet_data/2013_2014/price/2013_2014_Pecan_importPrice.csv",
+	//"exportPriceHistFile" 	: "./data/PecanStreet_data/2013_2014/price/2013_2014_Pecan_exportPrice.csv",
+	
+	// Filtering input data (for importing new data using 'AusgridDataImporter')
+	"minDemand" 			: 100, 		// min annual demand [kWh]
+	"maxDemand"				: 100000, 	// max annual demand [kWh]
+	"minSelfSupplyRatio"	: 0.01, 		// min ratio of (annual pv) / (annual demand)
+	"maxSelfSupplyRatio" 	: 100.0, 		// max ratio of (annual pv) / (annual demand)
+	"minimumYeildRatio" 	: 0.01, 		// min ratio of (annual pv) / (pv capacity * 365)
+
+	// Battery aging parameters
+	"battAge_CL_nom"		: 3650,		// nominal No. of cycles till failure
+	"battAge_SoC_nom"		: 50,		// nominal average SoC for cycles [%]
+	"battAge_DoD_nom"		: 100, 		// nominal depth-of-discharge [%] for cycles
+
+	// Temperature (see Val's paper for details on other aging parameters)
+	"battAge_a"			: 0.0039,
+	"battAge_b"			: 1.95,
+	"battAge_c"			: 67.51,
+	"battAge_d"			: 2070,
+	"battAge_T_nom"		: 25,			// deg C
+
+	// Discharge current
+	"battAge_e"			: 4464,
+	"battAge_f"			: -0.1382,
+	"battAge_g"			: -1519,
+	"battAge_h"			: -0.4305,
+
+	// Charging current
+	"battAge_m"			: 5963,
+	"battAge_n"			: -0.6531,
+	"battAge_o"			: 321.4,
+	"battAge_p"			: 0.03168,
+
+	// SoC, DoD
+	"battAge_q"			: 1471,
+	"battAge_s"			: 214.3,
+	"battAge_t"			: 0.6111,
+	"battAge_u"			: 0.3369,
+	"battAge_v"			: -2.295,
+	
+	// Plotting Control
+	"nBins"					: 7,				// for histograms
+	"plotResidualDistTrain" : false,
+	"plotResidualDistTest" 	: false,
+	"plotResidualPatterns"  : false,
+	"plotsPerPage"			: 1
+}

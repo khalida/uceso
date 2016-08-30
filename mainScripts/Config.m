@@ -12,8 +12,8 @@
 function cfg = Config(pwd)
 
 rng(42);                        % For repeatability
-cfg.type = 'oso';   	% Problem: 'minMaxDemand', 'oso'
-cfg.description = 'notKnowFutureFF';
+cfg.type = 'minMaxDemand';   	% Problem: 'minMaxDemand', 'oso'
+cfg.description = 'test_run';
 
 % Could use "getenv('NUMBER_OF_PROCESSORS')" but wouldn't work in *nix
 nProcAvail = 16;
@@ -23,8 +23,8 @@ nProcAvail = 16;
 cfg.sim.stepsPerHour = 2;
 cfg.sim.hoursPerDay = 24;
 cfg.sim.horizon = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
-cfg.sim.nCustomers = [1, 5, 20, 50, 100];
-cfg.sim.nAggregates = 4;
+cfg.sim.nCustomers = [1, 100];
+cfg.sim.nAggregates = 2;
 
 cfg.sim.batteryChargingFactor = 2;  % ratio of charge rate to capacity
 cfg.sim.nDaysTest = 24*7;           % days to run simulation for
@@ -65,7 +65,7 @@ cfg.fc.seasonalPeriod = cfg.sim.hoursPerDay*cfg.sim.stepsPerHour;
 
 % Forecast training options
 cfg.fc.nNodes = 50;                     % No. of nodes for NN, forests for RF
-cfg.fc.nStart = 3;                      % No. initializations
+cfg.fc.nStart = 10;                      % No. initializations
 cfg.fc.minimizeOverFirst = cfg.sim.horizon;
 cfg.fc.suppressOutput = false;
 cfg.fc.mseEpochs = 1000;
@@ -83,8 +83,8 @@ cfg.fc.nDaysSwap = 0; %floor(cfg.fc.nDaysTrain/4); % day-pairs to swap
 cfg.fc.nNodesFF = 50;                   % No. of nodes in FF ctrler
 cfg.fc.knowFutureFF = false;            % FF ctrlr sees future? (true for testing only)
 % How often to randomize SoC in FF example generation (to build robustness)
-cfg.fc.randomizeInterval = 9e9; % 7
-cfg.fc.randTrainIdx = true;             % whether to randomize training indexes
+cfg.fc.randomizeInterval = 7;
+cfg.fc.randTrainIdx = false;            % whether to randomize training indexes
 cfg.fc.createNetDemand = true;          % whether to convert demand/PC to net demand
 
 
@@ -124,7 +124,8 @@ if isequal(cfg.type, 'minMaxDemand')
     cfg.dataFileWithPath = [parentFold filesep 'data' filesep 'dataMmd'...
         filesep 'demand_3639.mat'];
 else
-    cfg.osoDataFolder = [parentFold filesep 'data' filesep 'dataOso'];
+    cfg.osoDataFolder = [parentFold filesep 'data' filesep 'dataOso'...
+        filesep 'data' filesep 'AusGrid_data' filesep '2011_2013'];
 end
 
 

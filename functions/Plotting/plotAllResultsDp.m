@@ -23,12 +23,12 @@ serialTime = dataTrain.time;
 
 %% Flags for which plots to produce
 plotAdditionalResults = false;
-plotForecastMSEs = false;
-plotChargeProfiles = false;
-plotTimeSeriesForecast = false;
-plotRawData = false;
+plotForecastMSEs = true;
+plotChargeProfiles = true;
+plotTimeSeriesForecast = true;
+plotRawData = true;
 plotForecastErrorBox = false;
-plotNoiseToSignalRatios = false;
+plotNoiseToSignalRatios = true;
 
 forecastDrivenMethods = {'NPFC', 'MFFC', 'PFFC'};
 methodsToIncludeCost = {'SP', 'NPFC', 'MFFC', 'IMFC'};
